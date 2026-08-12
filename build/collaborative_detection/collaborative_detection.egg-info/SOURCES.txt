@@ -12,6 +12,7 @@ collaborative_detection/__init__.py
 collaborative_detection/nodes/__init__.py
 collaborative_detection/nodes/cusum_detector_node.py
 collaborative_detection/nodes/gnss_sim_node.py
+collaborative_detection/nodes/gnss_viz_node.py
 collaborative_detection/nodes/meaconing_injector.py
 collaborative_detection/nodes/robot_mover_node.py
 collaborative_detection/nodes/uwb_sim_node.py

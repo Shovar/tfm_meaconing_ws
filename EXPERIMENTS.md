@@ -264,5 +264,3 @@ El notebook contiene funciones para:
 | Gazebo no muestra GUI | Verificar que `gz sim` está instalado (`brew install gz-harmonic`) |
 
 ---
-
-*Guía generada para el TFM de Antonio García Alcón — Universidad Europea de Madrid, 2026.*

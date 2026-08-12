@@ -24,6 +24,7 @@ function _colcon_prefix_chain_powershell_source_script {
 
 # source chained prefixes
 _colcon_prefix_chain_powershell_source_script "/Users/toni/robostack/.pixi/envs/jazzy/local_setup.ps1"
+_colcon_prefix_chain_powershell_source_script "/Users/toni/tfm_meaconing_ws/src/collaborative_detection/install/local_setup.ps1"
 
 # source this prefix
 $env:COLCON_CURRENT_PREFIX=(Split-Path $PSCommandPath -Parent)

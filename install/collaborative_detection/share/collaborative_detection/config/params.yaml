@@ -1,47 +1,22 @@
-# ============================================================
-# Parámetros del detector CUSUM y modelos de ruido de sensores
-# TFM: Detección Colaborativa de Meaconing GNSS
-# ============================================================
-# Wildcard /** applies these parameters to ALL nodes in the launch file.
-
 /**:
   ros__parameters:
-
-    # --- Parámetros de ruido de sensores ---
-    # σ_GNSS=1.0m ≈ GPS civil con SBAS (WAAS/EGNOS), realista y viable para detección
-    # Con σ_GNSS=2.0m el ruido en Δ (~2.8m) es comparable a la señal del ataque → indetectable
-    sigma_gnss: 1.0     # Desviación estándar del ruido GNSS (m)
-    sigma_uwb: 0.24     # Desviación estándar del ruido UWB (m) - Fishberg et al. 2024 MURP
-
-    # --- Parámetros del detector CUSUM ---
-    # Con fórmula signada δ=D_UWB-D_GNSS, bajo H₀ δ oscila alrededor de 0 (ruido se cancela).
-    # β bajo (0.5) permite detectar la señal del ataque (~1.6m) sin falsas alarmas.
-    # τ=3.0: margen suficiente contra ruido, alcanzable en ~4 pasos bajo ataque.
-    beta: 0.5           # Sesgo mínimo detectable (m)
-    tau: 3.0            # Umbral de detección
-    startup_delay: 5.0  # Segundos de warmup antes de empezar a acumular CUSUM
-
-    # --- Parámetros del atacante ---
-    drift_velocity: 0.2     # Velocidad de alejamiento del punto falso (m/s)
-    activation_delay: 30.0  # Tiempo hasta activación del ataque (s)
-    attack_type: single_antenna  # Tipo de ataque: 'single_antenna' (implementado), 'pattern' (opcional futuro)
-
-    # --- Semilla para reproducibilidad ---
-    random_seed: 42     # Semilla fija para numpy (reproducibilidad determinista)
-
-    # --- Frecuencia de operación ---
-    update_rate: 30.0   # Frecuencia de actualización de los nodos (Hz)
-
-    # --- Posiciones iniciales de los robots ---
+    sigma_gnss: 1.0
+    sigma_uwb: 0.24
+    beta: 0.5
+    tau: 3.0
+    startup_delay: 5.0
+    drift_velocity: 0.5
+    activation_delay: 30.0
+    attack_type: single_antenna
+    random_seed: 42
+    update_rate: 30.0
     robot1:
       x: 0.0
       y: 0.0
     robot2:
       x: 3.0
       y: 0.0
-
-    # --- Movimiento autónomo de los robots ---
-    robot1_linear_vel: 0.15   # Velocidad lineal robot 1 (m/s)
-    robot1_angular_vel: 0.30  # Velocidad angular robot 1 (rad/s)
-    robot2_linear_vel: 0.12   # Velocidad lineal robot 2 (m/s)
-    robot2_angular_vel: 0.25  # Velocidad angular robot 2 (rad/s)
+    robot1_linear_vel: 0.15
+    robot1_angular_vel: 0.3
+    robot2_linear_vel: 0.12
+    robot2_angular_vel: 0.25
