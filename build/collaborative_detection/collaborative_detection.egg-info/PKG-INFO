@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: collaborative_detection
+Version: 0.1.0
+Summary: TFM: Detección Colaborativa de Meaconing GNSS mediante Ranging UWB y CUSUM Secuencial
+Maintainer: Antonio García Alcón
+Maintainer-email: 9300toni@gmail.com
+License: Apache-2.0
+Requires-Dist: setuptools
+Dynamic: license
+Dynamic: maintainer
+Dynamic: maintainer-email
+Dynamic: requires-dist
+Dynamic: summary

@@ -1,0 +1,4 @@
+/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)
+/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)

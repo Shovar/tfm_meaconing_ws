@@ -1,0 +1,37 @@
+[0.371s] Invoking command in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection': CONDA_PROMPT_MODIFIER=(base) PIXI_PROMPT=(robostack:jazzy) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=3 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/jazzy/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/collaborative_detection build --build-base /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build install --record /Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log --install-scripts $base/lib/collaborative_detection --single-version-externally-managed install_data
+[0.502s] running egg_info
+[0.510s] writing ../../build/collaborative_detection/collaborative_detection.egg-info/PKG-INFO
+[0.511s] writing dependency_links to ../../build/collaborative_detection/collaborative_detection.egg-info/dependency_links.txt
+[0.511s] writing entry points to ../../build/collaborative_detection/collaborative_detection.egg-info/entry_points.txt
+[0.511s] writing requirements to ../../build/collaborative_detection/collaborative_detection.egg-info/requires.txt
+[0.511s] writing top-level names to ../../build/collaborative_detection/collaborative_detection.egg-info/top_level.txt
+[0.528s] reading manifest file '../../build/collaborative_detection/collaborative_detection.egg-info/SOURCES.txt'
+[0.529s] writing manifest file '../../build/collaborative_detection/collaborative_detection.egg-info/SOURCES.txt'
+[0.529s] running build
+[0.529s] running build_py
+[0.529s] copying collaborative_detection/__init__.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection
+[0.529s] copying collaborative_detection/nodes/cusum_detector_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.530s] copying collaborative_detection/nodes/uwb_sim_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.530s] copying collaborative_detection/nodes/gnss_sim_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.530s] copying collaborative_detection/nodes/__init__.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.530s] copying collaborative_detection/nodes/meaconing_injector.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.531s] copying collaborative_detection/nodes/robot_mover_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.531s] running install
+[0.534s] running install_lib
+[0.543s] running install_data
+[0.543s] copying resource/collaborative_detection -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/ament_index/resource_index/packages
+[0.543s] copying package.xml -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection
+[0.543s] copying launch/two_robots.launch.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/launch
+[0.544s] copying launch/experiment.launch.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/launch
+[0.544s] copying config/params.yaml -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/config
+[0.544s] running install_egg_info
+[0.552s] removing '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection-0.1.0-py3.12.egg-info' (and everything under it)
+[0.553s] Copying ../../build/collaborative_detection/collaborative_detection.egg-info to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection-0.1.0-py3.12.egg-info
+[0.554s] running install_scripts
+[0.605s] Installing cusum_detector_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.605s] Installing gnss_sim_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.605s] Installing meaconing_injector script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.605s] Installing robot_mover_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.606s] Installing uwb_sim_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.606s] writing list of installed files to '/Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log'
+[0.639s] Invoked command in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection' returned '0': CONDA_PROMPT_MODIFIER=(base) PIXI_PROMPT=(robostack:jazzy) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=3 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/jazzy/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/collaborative_detection build --build-base /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build install --record /Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log --install-scripts $base/lib/collaborative_detection --single-version-externally-managed install_data

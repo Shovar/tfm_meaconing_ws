@@ -1,0 +1,22 @@
+[0.720s] Invoking command in '/Users/toni/tfm_meaconing_ws/build/collaborative_detection': PIXI_PROMPT=(robostack:humble) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=4 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/jazzy/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build --no-deps symlink_data
+[0.809s] /Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+[0.809s]   warnings.warn(msg)
+[0.904s] running develop
+[1.041s] running egg_info
+[1.051s] writing collaborative_detection.egg-info/PKG-INFO
+[1.051s] writing dependency_links to collaborative_detection.egg-info/dependency_links.txt
+[1.052s] writing entry points to collaborative_detection.egg-info/entry_points.txt
+[1.052s] writing requirements to collaborative_detection.egg-info/requires.txt
+[1.052s] writing top-level names to collaborative_detection.egg-info/top_level.txt
+[1.072s] reading manifest file 'collaborative_detection.egg-info/SOURCES.txt'
+[1.073s] writing manifest file 'collaborative_detection.egg-info/SOURCES.txt'
+[1.083s] running build_ext
+[1.083s] Creating /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative-detection.egg-link (link to .)
+[1.083s] Installing cusum_detector_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[1.083s] Installing gnss_sim_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[1.084s] Installing meaconing_injector script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[1.084s] Installing uwb_sim_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[1.084s] 
+[1.084s] Installed /Users/toni/tfm_meaconing_ws/build/collaborative_detection
+[1.084s] running symlink_data
+[1.098s] Invoked command in '/Users/toni/tfm_meaconing_ws/build/collaborative_detection' returned '0': PIXI_PROMPT=(robostack:humble) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=4 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/jazzy/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build --no-deps symlink_data

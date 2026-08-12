@@ -1,0 +1,6 @@
+[console_scripts]
+cusum_detector_node = collaborative_detection.nodes.cusum_detector_node:main
+gnss_sim_node = collaborative_detection.nodes.gnss_sim_node:main
+meaconing_injector = collaborative_detection.nodes.meaconing_injector:main
+robot_mover_node = collaborative_detection.nodes.robot_mover_node:main
+uwb_sim_node = collaborative_detection.nodes.uwb_sim_node:main

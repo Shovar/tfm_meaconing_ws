@@ -1,0 +1,120 @@
+[0.116s] [34mcolcon[0m [1;30mDEBUG[0m [32mCommand line arguments: ['/Users/toni/robostack/.pixi/envs/jazzy/bin/colcon', 'build', '--packages-select', 'collaborative_detection'][0m
+[0.116s] [34mcolcon[0m [1;30mDEBUG[0m [32mParsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=False, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=10, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=['collaborative_detection'], packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, verb_parser=<colcon_defaults.argument_parser.defaults.DefaultArgumentsDecorator object at 0x10ab356a0>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0x10ab353a0>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0x10ab353a0>>)[0m
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(colcon_meta) check parameters
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(recursive) check parameters
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(ignore) check parameters
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(path) check parameters
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(colcon_meta) discover
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(recursive) discover
+[0.141s] [34mcolcon.colcon_core.package_discovery[0m [1;30mINFO[0m Crawling recursively for packages in '/Users/toni/tfm_meaconing_ws'
+[0.141s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.141s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'ignore'
+[0.141s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'ignore_ament_install'
+[0.141s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extensions ['colcon_pkg']
+[0.141s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'colcon_pkg'
+[0.142s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extensions ['colcon_meta']
+[0.142s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'colcon_meta'
+[0.142s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extensions ['ros']
+[0.142s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'ros'
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extensions ['cmake', 'python']
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'cmake'
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'python'
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extensions ['python_setup_py']
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(.) by extension 'python_setup_py'
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(build) by extension 'ignore'
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(build) ignored
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(install) by extension 'ignore'
+[0.158s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(install) ignored
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(log) by extension 'ignore'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(log) ignored
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'ignore'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'ignore_ament_install'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extensions ['colcon_pkg']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'colcon_pkg'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extensions ['colcon_meta']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'colcon_meta'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extensions ['ros']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'ros'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extensions ['cmake', 'python']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'cmake'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'python'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extensions ['python_setup_py']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src) by extension 'python_setup_py'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extensions ['ignore', 'ignore_ament_install']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extension 'ignore'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extension 'ignore_ament_install'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extensions ['colcon_pkg']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extension 'colcon_pkg'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extensions ['colcon_meta']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extension 'colcon_meta'
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extensions ['ros']
+[0.159s] [34mcolcon.colcon_core.package_identification[0m [1;30mLevel 1[0m _identify(src/collaborative_detection) by extension 'ros'
+[0.161s] [34mcolcon.colcon_core.package_identification[0m [1;30mDEBUG[0m [32mPackage 'src/collaborative_detection' with type 'ros.ament_python' and name 'collaborative_detection'[0m
+[0.161s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(recursive) using defaults
+[0.161s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(ignore) discover
+[0.161s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(ignore) using defaults
+[0.161s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(path) discover
+[0.161s] [34mcolcon.colcon_core.package_discovery[0m [1;30mLevel 1[0m discover_packages(path) using defaults
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'cmake_args' from command line to 'None'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'cmake_target' from command line to 'None'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'cmake_clean_cache' from command line to 'False'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'cmake_clean_first' from command line to 'False'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'cmake_force_configure' from command line to 'False'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'ament_cmake_args' from command line to 'None'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'catkin_cmake_args' from command line to 'None'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mLevel 5[0m set package 'collaborative_detection' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.170s] [34mcolcon.colcon_core.verb[0m [1;30mDEBUG[0m [32mBuilding package 'collaborative_detection' with the following arguments: {'ament_cmake_args': None, 'build_base': '/Users/toni/tfm_meaconing_ws/build/collaborative_detection', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/Users/toni/tfm_meaconing_ws/install/collaborative_detection', 'merge_install': False, 'path': '/Users/toni/tfm_meaconing_ws/src/collaborative_detection', 'symlink_install': False, 'test_result_base': None}[0m
+[0.170s] [34mcolcon.colcon_core.executor[0m [1;30mINFO[0m Executing jobs using 'parallel' executor
+[0.170s] [34mcolcon.colcon_parallel_executor.executor.parallel[0m [1;30mDEBUG[0m [32mrun_until_complete[0m
+[0.170s] [34mcolcon.colcon_ros.task.ament_python.build[0m [1;30mINFO[0m Building ROS package in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection' with build type 'ament_python'
+[0.170s] [34mcolcon.colcon_core.shell[0m [1;30mLevel 1[0m create_environment_hook('collaborative_detection', 'ament_prefix_path')
+[0.172s] [34mcolcon.colcon_core.plugin_system[0m [1;30mINFO[0m Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.172s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating environment hook '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/hook/ament_prefix_path.ps1'
+[0.172s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating environment descriptor '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/hook/ament_prefix_path.dsv'
+[0.172s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating environment hook '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/hook/ament_prefix_path.sh'
+[0.173s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.173s] [34mcolcon.colcon_core.shell[0m [1;30mDEBUG[0m [32mSkip shell extension 'dsv' for command environment[0m
+[0.286s] [34mcolcon.colcon_core.task.python.build[0m [1;30mINFO[0m Building Python package in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection'
+[0.286s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.286s] [34mcolcon.colcon_core.shell[0m [1;30mDEBUG[0m [32mSkip shell extension 'dsv' for command environment[0m
+[0.535s] [34mcolcon.colcon_core.task.python.build[0m [1;30mDEBUG[0m [32mAvailable setuptools commands: install, install_lib, bdist_dumb, dist_info, bdist_wheel, install_data, install_egg_info, clean, check, easy_install, sdist, build_ext, saveopts, bdist_egg, build_clib, egg_info, rotate, editable_wheel, install_scripts, develop, build_py, install_headers, bdist, symlink_data, alias, bdist_rpm, build_scripts, build, setopt[0m
+[0.538s] [34mcolcon.colcon_core.event_handler.log_command[0m [1;30mDEBUG[0m [32mInvoking command in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection': CONDA_PROMPT_MODIFIER=(base) PIXI_PROMPT=(robostack:jazzy) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=3 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/jazzy/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/collaborative_detection build --build-base /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build install --record /Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log --install-scripts $base/lib/collaborative_detection --single-version-externally-managed install_data[0m
+[0.780s] [34mcolcon.colcon_core.event_handler.log_command[0m [1;30mDEBUG[0m [32mInvoked command in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection' returned '0': CONDA_PROMPT_MODIFIER=(base) PIXI_PROMPT=(robostack:jazzy) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/jazzy/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=3 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/jazzy/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/collaborative_detection build --build-base /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build install --record /Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log --install-scripts $base/lib/collaborative_detection --single-version-externally-managed install_data[0m
+[0.782s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection' for CMake module files
+[0.782s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection' for CMake config files
+[0.782s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib'
+[0.783s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/bin'
+[0.783s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/pkgconfig/collaborative_detection.pc'
+[0.783s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages'
+[0.783s] [34mcolcon.colcon_core.shell[0m [1;30mLevel 1[0m create_environment_hook('collaborative_detection', 'pythonpath')
+[0.783s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating environment hook '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/hook/pythonpath.ps1'
+[0.783s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating environment descriptor '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/hook/pythonpath.dsv'
+[0.783s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating environment hook '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/hook/pythonpath.sh'
+[0.784s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m checking '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/bin'
+[0.784s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m create_environment_scripts_only(collaborative_detection)
+[0.784s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating package script '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/package.ps1'
+[0.784s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating package descriptor '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/package.dsv'
+[0.784s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating package script '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/package.sh'
+[0.785s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating package script '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/package.bash'
+[0.785s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating package script '/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/package.zsh'
+[0.786s] [34mcolcon.colcon_core.environment[0m [1;30mLevel 1[0m create_file_with_runtime_dependencies(/Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/colcon-core/packages/collaborative_detection)
+[0.786s] [34mcolcon.colcon_parallel_executor.executor.parallel[0m [1;30mDEBUG[0m [32mclosing loop[0m
+[0.786s] [34mcolcon.colcon_parallel_executor.executor.parallel[0m [1;30mDEBUG[0m [32mloop closed[0m
+[0.786s] [34mcolcon.colcon_parallel_executor.executor.parallel[0m [1;30mDEBUG[0m [32mrun_until_complete finished with '0'[0m
+[0.786s] [34mcolcon.colcon_core.event_reactor[0m [1;30mDEBUG[0m [32mjoining thread[0m
+[0.786s] [34mcolcon.colcon_core.event_reactor[0m [1;30mDEBUG[0m [32mjoined thread[0m
+[0.786s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix script '/Users/toni/tfm_meaconing_ws/install/local_setup.ps1'
+[0.787s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix util module '/Users/toni/tfm_meaconing_ws/install/_local_setup_util_ps1.py'
+[0.787s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix chain script '/Users/toni/tfm_meaconing_ws/install/setup.ps1'
+[0.788s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix script '/Users/toni/tfm_meaconing_ws/install/local_setup.sh'
+[0.788s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix util module '/Users/toni/tfm_meaconing_ws/install/_local_setup_util_sh.py'
+[0.788s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix chain script '/Users/toni/tfm_meaconing_ws/install/setup.sh'
+[0.789s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix script '/Users/toni/tfm_meaconing_ws/install/local_setup.bash'
+[0.789s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix chain script '/Users/toni/tfm_meaconing_ws/install/setup.bash'
+[0.789s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix script '/Users/toni/tfm_meaconing_ws/install/local_setup.zsh'
+[0.790s] [34mcolcon.colcon_core.shell[0m [1;30mINFO[0m Creating prefix chain script '/Users/toni/tfm_meaconing_ws/install/setup.zsh'

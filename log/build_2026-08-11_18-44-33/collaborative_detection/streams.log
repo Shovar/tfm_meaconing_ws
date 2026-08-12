@@ -1,0 +1,59 @@
+[0.326s] Invoking command in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection': CONDA_PROMPT_MODIFIER=(base) PIXI_PROMPT=(robostack:humble) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/humble/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=3 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/humble/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/collaborative_detection build --build-base /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build install --record /Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log --install-scripts $base/lib/collaborative_detection --single-version-externally-managed install_data
+[0.448s] running egg_info
+[0.455s] creating ../../build/collaborative_detection/collaborative_detection.egg-info
+[0.455s] writing ../../build/collaborative_detection/collaborative_detection.egg-info/PKG-INFO
+[0.455s] writing dependency_links to ../../build/collaborative_detection/collaborative_detection.egg-info/dependency_links.txt
+[0.455s] writing entry points to ../../build/collaborative_detection/collaborative_detection.egg-info/entry_points.txt
+[0.456s] writing requirements to ../../build/collaborative_detection/collaborative_detection.egg-info/requires.txt
+[0.456s] writing top-level names to ../../build/collaborative_detection/collaborative_detection.egg-info/top_level.txt
+[0.456s] writing manifest file '../../build/collaborative_detection/collaborative_detection.egg-info/SOURCES.txt'
+[0.471s] reading manifest file '../../build/collaborative_detection/collaborative_detection.egg-info/SOURCES.txt'
+[0.471s] writing manifest file '../../build/collaborative_detection/collaborative_detection.egg-info/SOURCES.txt'
+[0.471s] running build
+[0.471s] running build_py
+[0.471s] creating /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection
+[0.472s] copying collaborative_detection/__init__.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection
+[0.472s] creating /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.472s] copying collaborative_detection/nodes/cusum_detector_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.472s] copying collaborative_detection/nodes/uwb_sim_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.472s] copying collaborative_detection/nodes/gnss_sim_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.472s] copying collaborative_detection/nodes/__init__.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.472s] copying collaborative_detection/nodes/meaconing_injector.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.473s] copying collaborative_detection/nodes/robot_mover_node.py -> /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes
+[0.473s] running install
+[0.475s] running install_lib
+[0.483s] creating /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection
+[0.483s] creating /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.483s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes/cusum_detector_node.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.483s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes/uwb_sim_node.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.483s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes/gnss_sim_node.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.483s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes/__init__.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.483s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes/meaconing_injector.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.484s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/nodes/robot_mover_node.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes
+[0.484s] copying /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build/lib/collaborative_detection/__init__.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection
+[0.484s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes/cusum_detector_node.py to cusum_detector_node.cpython-312.pyc
+[0.485s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes/uwb_sim_node.py to uwb_sim_node.cpython-312.pyc
+[0.485s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes/gnss_sim_node.py to gnss_sim_node.cpython-312.pyc
+[0.486s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes/__init__.py to __init__.cpython-312.pyc
+[0.486s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes/meaconing_injector.py to meaconing_injector.cpython-312.pyc
+[0.487s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/nodes/robot_mover_node.py to robot_mover_node.cpython-312.pyc
+[0.487s] byte-compiling /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection/__init__.py to __init__.cpython-312.pyc
+[0.487s] running install_data
+[0.487s] creating /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/ament_index/resource_index/packages
+[0.488s] copying resource/collaborative_detection -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/ament_index/resource_index/packages
+[0.488s] copying package.xml -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection
+[0.488s] creating /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/launch
+[0.488s] copying launch/two_robots.launch.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/launch
+[0.488s] copying launch/experiment.launch.py -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/launch
+[0.488s] creating /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/config
+[0.488s] copying config/params.yaml -> /Users/toni/tfm_meaconing_ws/install/collaborative_detection/share/collaborative_detection/config
+[0.488s] running install_egg_info
+[0.496s] Copying ../../build/collaborative_detection/collaborative_detection.egg-info to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages/collaborative_detection-0.1.0-py3.12.egg-info
+[0.497s] running install_scripts
+[0.542s] Installing cusum_detector_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.542s] Installing gnss_sim_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.542s] Installing meaconing_injector script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.542s] Installing robot_mover_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.543s] Installing uwb_sim_node script to /Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/collaborative_detection
+[0.543s] writing list of installed files to '/Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log'
+[0.554s] Invoked command in '/Users/toni/tfm_meaconing_ws/src/collaborative_detection' returned '0': CONDA_PROMPT_MODIFIER=(base) PIXI_PROMPT=(robostack:humble) PYTHONPATH=/Users/toni/tfm_meaconing_ws/build/collaborative_detection/prefix_override:/Users/toni/robostack/.pixi/envs/humble/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/toni/tfm_meaconing_ws/install/collaborative_detection/lib/python3.12/site-packages:${PYTHONPATH} SHLVL=3 _=/usr/bin/env /Users/toni/robostack/.pixi/envs/humble/bin/python3.12 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/collaborative_detection build --build-base /Users/toni/tfm_meaconing_ws/build/collaborative_detection/build install --record /Users/toni/tfm_meaconing_ws/build/collaborative_detection/install.log --install-scripts $base/lib/collaborative_detection --single-version-externally-managed install_data
