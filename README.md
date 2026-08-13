@@ -24,7 +24,7 @@ A **CUSUM** (Cumulative Sum) sequential detector accumulates this bias and trigg
 
 $$S_k = \max(0, S_{k-1} + \delta_k - \beta), \qquad \text{alarm if } S_k > \tau$$
 
-The CUSUM is superior to a fixed threshold because it **accumulates evidence over time** rather than reacting to single-sample noise.
+The CUSUM is superior to a fixed threshold because it **accumulates evidence over time** rather than reacting to single-sample noise. To reject brief noise transients, the alarm only fires after $S_k$ has stayed above $\tau$ for a **confirmation window** (`alert_confirm_time` = 2 s by default), so a genuine detection is reported ~2 s after the statistic first crosses the threshold.
 
 ### Key references
 
@@ -39,7 +39,7 @@ The CUSUM is superior to a fixed threshold because it **accumulates evidence ove
 ```
 tfm_meaconing_ws/                         # ROS 2 workspace root
 ├── README.md                             # ← this file
-├── EXPERIMENTS.md                        # Detailed experiment guide (Spanish)
+├── EXPERIMENTS.md                        # Detailed experiment guide
 │
 ├── src/collaborative_detection/          # Source package
 │   ├── package.xml                       # ROS 2 package manifest
@@ -128,7 +128,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 2. **GNSS Sim Node** reads odometry from both robots, converts from local `odom` frame to global `world` frame using spawn offsets, adds Gaussian noise, and publishes `gnss_clean` at 30 Hz.
 3. **UWB Sim Node** reads odometry from both robots, converts to world frame, computes the Euclidean distance, adds Gaussian noise (σ = 0.24 m), and publishes `uwb_distance` at 30 Hz.
 4. **Meaconing Injector** subscribes to `gnss_clean` and, when inactive, passes it through as `gnss_spoofed`. When the attack activates (auto-delay or manual service call), both robots' GNSS outputs are **gradually dragged toward a common fake target at `drift_velocity`** plus independent noise — a single-antenna 'drag-off' meaconing attack. Slower drift collapses `D_GNSS` more slowly, so the CUSUM rises at a rate proportional to `drift_velocity`.
-5. **CUSUM Detector** subscribes to `gnss_spoofed` (both robots) and `uwb_distance`, computes $D_{GNSS}$ and $\delta$, updates the CUSUM statistic, and publishes alerts.
+5. **CUSUM Detector** subscribes to `gnss_spoofed` (both robots) and `uwb_distance`, computes $D_{GNSS}$ and $\delta$, updates the CUSUM statistic, and publishes an alert once $S_k$ has stayed above $\tau$ for the `alert_confirm_time` confirmation window (2 s).
 
 ### Topics
 
@@ -196,7 +196,7 @@ This starts **everything** in sequence:
 | 2–3 | Two TurtleBot3 robots spawn at (0,0) and (3,0) |
 | 5 | GNSS + UWB simulators start publishing |
 | 5.5 | Meaconing injector starts (passthrough mode) |
-| 6 | CUSUM detector starts (5 s warmup) |
+| 6 | CUSUM detector starts (10 s warmup from first data sample) |
 | 7 | Robots begin autonomous circular motion |
 | 7.5 | GNSS visualization node starts (markers viewable in RViz2) |
 | **30** | 🛑 Attack auto-activates (configurable) |
@@ -279,7 +279,9 @@ All parameters live in `config/params.yaml` under the `/**` wildcard node.
 | `sigma_uwb` | `0.24` | UWB noise standard deviation (m) |
 | `beta` | `0.5` | CUSUM drift parameter (minimum detectable bias, m) |
 | `tau` | `3.0` | CUSUM detection threshold |
-| `startup_delay` | `5.0` | CUSUM warmup period before accumulation begins (s) |
+| `filter_window` | `30` | Moving-average window over $\delta$ (samples, 30 ≈ 1 s @ 30 Hz) |
+| `alert_confirm_time` | `2.0` | Time $S_k$ must stay above $\tau$ before the alarm fires (s) |
+| `startup_delay` | `10.0` | CUSUM warmup period from the first data sample (s) |
 | `drift_velocity` | `0.2` | Fake position drift speed during attack (m/s) |
 | `activation_delay` | `30.0` | Auto-activation delay for the attack (s) |
 | `attack_type` | `single_antenna` | Attack mode: `single_antenna` (implemented) or `pattern` (future) |
@@ -301,6 +303,8 @@ The CUSUM detector is **conservatively calibrated** to avoid false positives:
 - **β = 0.5**: Each innovation δ must exceed 0.5 m to contribute positively. Under H₀, $\delta \sim \mathcal{N}(0, \sigma_\delta^2)$ with $\sigma_\delta \approx 1.03$ m (from $\sigma_{GNSS}=1.0$, $\sigma_{UWB}=0.24$). Since $\mathbb{E}[\delta - \beta] = -0.5$, $S_k$ tends to **stay at zero**.
 
 - **τ = 3.0**: Three consecutive positive spikes of ~1.5 m are needed to cross the threshold — probability < 0.03% under H₀.
+
+- **Confirmation window (`alert_confirm_time` = 2.0 s)**: once $S_k$ crosses $\tau$ it must remain above for 2 s before the alarm fires. Short-lived transients (a startup or orbital-phase spike) are rejected, while the sustained attack signal keeps $S_k$ above $\tau$, so the alarm fires ~2 s after the first crossing.
 
 Under H₁ (attack), $D_{GNSS} \approx 0$ and $D_{UWB} \approx 3$ m → $\delta \approx 3$ m → $S_k$ grows ~2.5 m/step → crosses $\tau$ in ~2 steps (~67 ms at 30 Hz).
 
@@ -327,15 +331,17 @@ During the attack, Gazebo shows the robots continuing their normal circular moti
 
 ## Analysis
 
-After running experiments, open the Jupyter notebook:
+After running experiments, generate the plots and metrics with `plot_results.py`
+(headless — no Jupyter needed):
 
 ```bash
 # From the ROS 2 Jazzy environment
-cd ~/tfm_meaconing_ws/src/collaborative_detection/analysis
-jupyter notebook plot_results.ipynb
+cd ~/tfm_meaconing_ws
+source install/setup.bash
+python3 src/collaborative_detection/analysis/plot_results.py
 ```
 
-The notebook automatically:
+The script automatically:
 
 1. Discovers all experiment rosbags in `results/`
 2. Loads time series for all topics using `rosbag2_py` (MCAP format)
@@ -346,7 +352,33 @@ The notebook automatically:
    - **Fixed threshold vs CUSUM** — demonstrates sequential detector advantage
    - **Detection metrics** — TTD, false alarm count
 
+> **Note**: the red "Alarm active" regions in the CUSUM plots come from the confirmed `/system/meaconing_alert` topic, so they begin ~2 s after $S_k$ first crosses $\tau$ (the `alert_confirm_time` confirmation window).
+
 > **Requires** the ROS 2 Jazzy environment (`pixi run -e jazzy`) for `rosbag2_py` and `rclpy`.
+
+---
+
+## Example Results
+
+Example plots generated with `plot_results.py` from a full E0–E4 run.
+
+### CUSUM evolution
+
+<p align="center">
+  <img src="docs/images/cusum_evolution.png" alt="CUSUM statistic S_k per experiment" width="90%"/>
+</p>
+
+### UWB distance (physical inter-robot distance)
+
+| E0 — Baseline | E1 — Slow drift | E2 — Fast drift | E3 — Hot start | E4 — Wide separation |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="docs/images/uwb_distance_e0_baseline.png" width="200"/> | <img src="docs/images/uwb_distance_e1_slow_drift.png" width="200"/> | <img src="docs/images/uwb_distance_e2_fast_drift.png" width="200"/> | <img src="docs/images/uwb_distance_e3_hot_start.png" width="200"/> | <img src="docs/images/uwb_distance_e4_wide_separation.png" width="200"/> |
+
+### Fixed threshold vs CUSUM
+
+| E0 — Baseline | E1 — Slow drift | E2 — Fast drift | E3 — Hot start | E4 — Wide separation |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="docs/images/threshold_vs_cusum_e0_baseline.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e1_slow_drift.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e2_fast_drift.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e3_hot_start.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e4_wide_separation.png" width="200"/> |
 
 ---
 

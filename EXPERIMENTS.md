@@ -1,19 +1,20 @@
-# Guía de Experimentos — Detección Colaborativa de Meaconing GNSS
+# Experiments Guide — Collaborative GNSS Meaconing Detection
 
-**TFM: Arquitectura de Seguridad para Navegación Autónoma de Robots**  
+**Master's Thesis (TFM)** — Security Architecture for Autonomous Robot Navigation
 Antonio García Alcón — Universidad Europea de Madrid, 2026
 
 ---
 
-## 1. Setup del entorno
+## 1. Environment setup
 
 ```bash
-# 1. Activar RoboStack (Jazzy)
+# 1. Activate RoboStack (Jazzy)
 conda activate base
 cd ~/robostack
 pixi run -e jazzy
 
-# 2. Build del workspace
+# 2. One-time build. run_experiment.sh rebuilds automatically for each
+#    experiment, so this is only needed once to generate install/setup.bash.
 cd ~/tfm_meaconing_ws
 colcon build --packages-select collaborative_detection
 source install/setup.bash
@@ -22,46 +23,54 @@ export TURTLEBOT3_MODEL=waffle
 
 ---
 
-## 2. Smoke test rápido (verificar que todo funciona)
+## 2. Quick smoke test (verify everything works)
 
-### 2.1 Lanzar el experimento
+The smoke test is **interactive**: you launch the full pipeline with the GUI,
+watch Gazebo, and trigger the attack manually. The batch experiments (Section 3)
+use `run_experiment.sh` instead, which runs headless and tears everything down.
+
+### 2.1 Launch the pipeline
 
 ```bash
 ros2 launch collaborative_detection experiment.launch.py
 ```
 
-Se abre Gazebo con 2 TurtleBots. A los 7s empiezan a moverse en círculos.
+Gazebo opens with 2 TurtleBots. After ~7 s they start moving in circles.
 
-### 2.2 Verificar topics (en otra terminal)
+### 2.2 Verify topics (in a second terminal)
 
 ```bash
-# Terminal 2 — sourcear el entorno primero
+# Terminal 2 — source the environment first
 source ~/tfm_meaconing_ws/install/setup.bash
 
-# Listar todos los topics
+# List all topics
 ros2 topic list
-# Deberías ver: /robot1/gnss_clean, /robot2/gnss_spoofed,
-#               /robots/uwb_distance, /system/cusum_value,
-#               /system/meaconing_alert, /meaconing/active, etc.
+# You should see: /robot1/gnss_clean, /robot2/gnss_spoofed,
+#                 /robots/uwb_distance, /system/cusum_value,
+#                 /system/meaconing_alert, /meaconing/active, etc.
 
-# Monitorizar CUSUM (debe fluctuar cerca de 0)
+# Monitor the CUSUM statistic (should hover near 0)
 ros2 topic echo /system/cusum_value
 
-# Alerta (debe ser False sin ataque)
+# Alarm (should be False with no attack)
 ros2 topic echo /system/meaconing_alert
 ```
 
-### 2.3 Activar el ataque manualmente (sin esperar 30s)
+### 2.3 Activate the attack manually (skip the 30 s wait)
 
 ```bash
 ros2 service call /meaconing/set_active std_srvs/srv/SetBool "{data: true}"
 ```
 
-**Resultado esperado:**
-- `S_k` empieza a subir monótonamente
-- En ~2-10s (según `drift_velocity`), `S_k` cruza `tau` → `🚨 MEACONING DETECTED!`
+**Expected result:**
 
-### 2.4 Resetear entre pruebas
+- `S_k` starts rising monotonically
+- Within ~2-10 s (depending on `drift_velocity`), `S_k` crosses `tau`
+- The `🚨 MEACONING DETECTED!` alarm fires ~2 s **after** the crossing, due to
+  the confirmation window (`alert_confirm_time: 2.0`) that ensures it is a real
+  attack and not a transient
+
+### 2.4 Reset between tests
 
 ```bash
 ros2 service call /system/reset_cusum std_srvs/srv/Trigger
@@ -70,197 +79,174 @@ ros2 service call /meaconing/set_active std_srvs/srv/SetBool "{data: false}"
 
 ---
 
-## 3. Escenarios de experimento (E0-E4)
+## 3. Experiment scenarios (E0–E4)
 
-Cada escenario requiere cambiar parámetros en `src/collaborative_detection/config/params.yaml` y reconstruir.
-
-### E0 — Baseline (sin ataque, medir FAR)
-
-**Objetivo:** Verificar que sin ataque no hay falsas alarmas.
-
-```yaml
-# params.yaml
-activation_delay: 9999    # Nunca se activa solo
-tau: 2.0
-beta: 0.5
-drift_velocity: 0.2
-```
+Run each experiment **one at a time** with `run_experiment.sh`. The script handles
+the whole lifecycle: clean slate → set parameters → build → sync params → launch
+(headless) → record rosbag → tear down.
 
 ```bash
-colcon build --packages-select collaborative_detection && source install/setup.bash
-ros2 bag record -o bags/E0_baseline \
-  /robot1/gnss_spoofed /robot2/gnss_spoofed \
-  /robots/uwb_distance /system/cusum_value \
-  /system/delta_value /system/meaconing_alert \
-  /meaconing/active
-# Dejar correr 10 min → Ctrl+C
+cd ~/tfm_meaconing_ws
+source install/setup.bash
+export TURTLEBOT3_MODEL=waffle
+./src/collaborative_detection/scripts/run_experiment.sh e1
 ```
 
-### E1 — Meaconing lento (medir TTD con ataque sutil)
+Flags:
 
-**Objetivo:** Medir tiempo de detección con drift lento.
+- `--duration N` — run length in seconds (default 90)
+- `--gui` — keep the Gazebo GUI (headless by default)
 
-```yaml
-activation_delay: 30.0    # Ataque a los 30s
-drift_velocity: 0.1       # 0.1 m/s
-tau: 2.0
-beta: 0.5
-```
+> **Note on the alarm:** the CUSUM detector fires `🚨 MEACONING DETECTED!` ~2 s
+> after `S_k` crosses `tau`, due to the confirmation window
+> (`alert_confirm_time: 2.0`). This delay is intentional: it rejects transients
+> and confirms a real attack.
+
+| Experiment | Command | Parameter changes | Description |
+|---|---|---|---|
+| **E0 — Baseline** | `run_experiment.sh e0` | `activation_delay: 9999.0` | No attack — validates zero false positives |
+| **E1 — Slow drift** | `run_experiment.sh e1` | `drift_velocity: 0.1` | Subtle attack, measures detection sensitivity |
+| **E2 — Fast drift** | `run_experiment.sh e2` | `drift_velocity: 0.5` | Obvious attack, measures minimum TTD |
+| **E3 — Hot start** | `run_experiment.sh e3` | `activation_delay: 2.0` | Attack active from the beginning |
+| **E4 — Wide separation** | `run_experiment.sh e4` | `robot2.x: 5.0` | Robots 5 m apart — tests distance effect on TTD |
+
+### E0 — Baseline (no attack, measure FAR)
+
+**Objective:** verify there are no false alarms without an attack.
 
 ```bash
-colcon build --packages-select collaborative_detection && source install/setup.bash
-ros2 bag record -o bags/E1_slow_attack \
-  /robot1/gnss_spoofed /robot2/gnss_spoofed \
-  /robots/uwb_distance /system/cusum_value \
-  /system/delta_value /system/meaconing_alert \
-  /meaconing/active
-# Dejar correr 10 min → Ctrl+C
+./src/collaborative_detection/scripts/run_experiment.sh e0
 ```
 
-### E2 — Meaconing rápido (medir TTD con ataque obvio)
+The script sets `activation_delay: 9999.0` (the attack never auto-activates),
+records ~90 s to `results/e0_baseline/`, and tears everything down.
 
-**Objetivo:** Medir TTD con drift rápido.
+### E1 — Slow drift (measure TTD with a subtle attack)
 
-```yaml
-activation_delay: 30.0
-drift_velocity: 0.5       # 0.5 m/s
-tau: 2.0
-beta: 0.5
-```
+**Objective:** measure time-to-detect with a slow drift.
 
 ```bash
-colcon build --packages-select collaborative_detection && source install/setup.bash
-ros2 bag record -o bags/E2_fast_attack \
-  /robot1/gnss_spoofed /robot2/gnss_spoofed \
-  /robots/uwb_distance /system/cusum_value \
-  /system/delta_value /system/meaconing_alert \
-  /meaconing/active
-# Dejar correr ~5 min → Ctrl+C
+./src/collaborative_detection/scripts/run_experiment.sh e1
 ```
 
-### E3 — Arranque en caliente (ataque desde t=0)
+Sets `drift_velocity: 0.1` m/s and `activation_delay: 30.0`. The attack drags the
+reported GNSS positions toward a common fake point at 0.1 m/s, so `D_GNSS`
+collapses slowly and the CUSUM rises gradually.
 
-**Objetivo:** Medir TTD cuando el sistema arranca ya bajo ataque.
+### E2 — Fast drift (measure TTD with an obvious attack)
 
-```yaml
-activation_delay: 2.0      # Ataque al inicio
-drift_velocity: 0.2
-tau: 2.0
-beta: 0.5
-```
+**Objective:** measure time-to-detect with a fast drift.
 
 ```bash
-colcon build --packages-select collaborative_detection && source install/setup.bash
-ros2 bag record -o bags/E3_hot_start \
-  /robot1/gnss_spoofed /robot2/gnss_spoofed \
-  /robots/uwb_distance /system/cusum_value \
-  /system/delta_value /system/meaconing_alert \
-  /meaconing/active
-# Dejar correr 10 min → Ctrl+C
+./src/collaborative_detection/scripts/run_experiment.sh e2
 ```
 
-### E4 — Variación de distancia entre robots
+Sets `drift_velocity: 0.5` m/s. The faster drag collapses `D_GNSS` sooner, so the
+CUSUM crosses `tau` earlier than in E1.
 
-**Objetivo:** Ver si la separación inicial afecta al TTD.
+### E3 — Hot start (attack from t=0)
 
-```yaml
-activation_delay: 30.0
-drift_velocity: 0.2
-tau: 2.0
-beta: 0.5
-```
+**Objective:** measure TTD when the system starts already under attack.
 
 ```bash
-colcon build --packages-select collaborative_detection && source install/setup.bash
-
-# Lanzar con robots más separados (x2=5.0)
-ros2 launch collaborative_detection experiment.launch.py x2:=5.0
-
-ros2 bag record -o bags/E4_varied_distance \
-  /robot1/gnss_spoofed /robot2/gnss_spoofed \
-  /robots/uwb_distance /system/cusum_value \
-  /system/delta_value /system/meaconing_alert \
-  /meaconing/active
-# Dejar correr 10 min → Ctrl+C
+./src/collaborative_detection/scripts/run_experiment.sh e3
 ```
+
+Sets `activation_delay: 2.0` (attack active almost immediately) and a shorter
+`startup_delay: 3.0` so the detector starts accumulating early.
+
+### E4 — Wide separation
+
+**Objective:** see whether the initial inter-robot distance affects TTD.
+
+```bash
+./src/collaborative_detection/scripts/run_experiment.sh e4
+```
+
+Spawns robot2 at x = 5.0 (5 m apart, instead of 3 m) and passes `x2:=5.0` to the
+launch file.
 
 ---
 
-## 4. Barrido de τ (curva ROC)
+## 4. τ Sweep (ROC curve)
 
-Para generar la curva ROC (TTD vs FAR), repetir E1 variando `tau`:
+To build the ROC curve (TTD vs FAR), repeat E1 while varying `tau`. The script
+does not sweep `tau` directly, but it preserves any value you set in `params.yaml`
+(it only overrides the experiment-specific keys listed above). For each `tau`:
 
-| τ | Esperado |
+```bash
+# 1. Edit src/collaborative_detection/config/params.yaml → tau: <value>
+# 2. Run E1
+./src/collaborative_detection/scripts/run_experiment.sh e1
+# 3. Keep the rosbag by renaming its folder
+mv results/e1_slow_drift results/e1_tau_5.0
+```
+
+| τ | Expected |
 |---|---|
-| 0.5 | TTD muy rápido, FAR alto |
-| 1.0 | TTD rápido, FAR moderado |
-| 2.0 | Equilibrio |
-| 5.0 | TTD lento, FAR bajo |
-| 10.0 | TTD muy lento, FAR ~0 |
-
-```bash
-# Para cada valor de tau, editar params.yaml y:
-colcon build --packages-select collaborative_detection && source install/setup.bash
-ros2 bag record -o bags/E1_tau_5.0 \
-  /robot1/gnss_spoofed /robot2/gnss_spoofed \
-  /robots/uwb_distance /system/cusum_value \
-  /system/delta_value /system/meaconing_alert \
-  /meaconing/active
-```
+| 0.5 | Very fast TTD, high FAR |
+| 1.0 | Fast TTD, moderate FAR |
+| 2.0 | Balanced |
+| 5.0 | Slow TTD, low FAR |
+| 10.0 | Very slow TTD, FAR ~0 |
 
 ---
 
-## 5. Análisis offline con Jupyter
+## 5. Offline analysis
 
-Una vez grabados todos los rosbags:
+After the rosbags are recorded, generate the plots and metrics with
+`plot_results.py` (headless — no Jupyter needed):
 
 ```bash
-cd ~/tfm_meaconing_ws/src/collaborative_detection/analysis
-
-# Instalar dependencias si no están
-pip install jupyter matplotlib numpy
-
-# Lanzar notebook
-jupyter notebook plot_results.ipynb
+cd ~/tfm_meaconing_ws
+source install/setup.bash
+python3 src/collaborative_detection/analysis/plot_results.py
 ```
 
-El notebook contiene funciones para:
-1. Cargar rosbags con `rosbag2_py`
-2. Extraer series temporales de `S_k`, `Δ_k`, alertas
-3. Calcular TTD (tiempo hasta primera alerta tras activación)
-4. Calcular FAR (falsas alarmas/minuto durante periodo sin ataque)
-5. Generar las 4 gráficas de la memoria (§4.3)
+> Run this from the Jazzy environment, whose Python has `rosbag2_py`,
+> `matplotlib` and `numpy`.
+
+The script:
+
+1. Loads every rosbag in `results/` with `rosbag2_py`
+2. Extracts the time series for `S_k`, `δ`, and the alarms
+3. Computes TTD (time to the first confirmed alert after activation)
+4. Computes the false-alarm count during the no-attack period
+5. Generates the PNG plots in `results/plots/`
 
 ---
 
-## 6. Resumen de parámetros clave
+## 6. Key parameter summary
 
-| Parámetro | Default | Significado |
+| Parameter | Default | Meaning |
 |---|---|---|
-| `sigma_gnss` | 2.0 | Ruido GNSS (m) — GPS civil |
-| `sigma_uwb` | 0.24 | Ruido UWB (m) — Fishberg 2024 |
-| `beta` | 0.5 | Sesgo mínimo detectable CUSUM (m) |
-| `tau` | 2.0 | Umbral de alarma CUSUM |
-| `drift_velocity` | 0.2 | Velocidad de arrastre del ataque (m/s) |
-| `activation_delay` | 30.0 | Tiempo hasta auto-activación (s) |
-| `attack_type` | single_antenna | Tipo de ataque |
-| `random_seed` | 42 | Semilla numpy (reproducibilidad) |
-| `robot1_linear_vel` | 0.15 | Velocidad lineal robot 1 (m/s) |
-| `robot1_angular_vel` | 0.30 | Velocidad angular robot 1 (rad/s) |
-| `robot2_linear_vel` | 0.12 | Velocidad lineal robot 2 (m/s) |
-| `robot2_angular_vel` | 0.25 | Velocidad angular robot 2 (rad/s) |
+| `sigma_gnss` | 1.0 | GNSS noise (m) — civil GPS with SBAS |
+| `sigma_uwb` | 0.24 | UWB noise (m) — Fishberg 2024 |
+| `beta` | 0.5 | Minimum detectable CUSUM bias (m) |
+| `tau` | 3.0 | CUSUM alarm threshold |
+| `filter_window` | 30 | Moving-average window over δ (samples, 30 ≈ 1 s @ 30 Hz) |
+| `alert_confirm_time` | 2.0 | Seconds S_k must stay above τ before the alarm fires |
+| `startup_delay` | 10.0 | Warmup seconds (from the first data sample) before accumulating CUSUM |
+| `drift_velocity` | 0.2 | Attack drag speed (m/s) |
+| `activation_delay` | 30.0 | Time until auto-activation (s) |
+| `attack_type` | single_antenna | Attack type |
+| `random_seed` | 42 | NumPy seed (reproducibility) |
+| `robot1_linear_vel` | 0.15 | Robot 1 linear velocity (m/s) |
+| `robot1_angular_vel` | 0.30 | Robot 1 angular velocity (rad/s) |
+| `robot2_linear_vel` | 0.12 | Robot 2 linear velocity (m/s) |
+| `robot2_angular_vel` | 0.25 | Robot 2 angular velocity (rad/s) |
 
 ---
 
 ## 7. Troubleshooting
 
-| Problema | Solución |
+| Problem | Solution |
 |---|---|
-| `ros_gz_sim` no encontrado | Usar `pixi run -e jazzy` (no humble) |
-| `turtlebot3_gazebo` no encontrado | Añadir `ros-jazzy-turtlebot3-simulations` a `pixi.toml` |
-| Error `oneshot` en `create_timer` | Ya corregido — usa `timer.cancel()` en su lugar |
-| OGRE rendering errors | Cosmético en macOS — no afecta al experimento |
-| Thread affinity warnings | Normal en macOS con DDS — ignorar |
-| Gazebo no muestra GUI | Verificar que `gz sim` está instalado (`brew install gz-harmonic`) |
+| `ros_gz_sim` not found | Use `pixi run -e jazzy` (not humble) |
+| `turtlebot3_gazebo` not found | Add `ros-jazzy-turtlebot3-simulations` to `pixi.toml` |
+| `oneshot` error in `create_timer` | Already fixed — uses `timer.cancel()` instead |
+| OGRE rendering errors | Cosmetic on macOS — does not affect the experiment |
+| Thread affinity warnings | Normal on macOS with DDS — ignore |
+| Gazebo shows no GUI | Verify `gz sim` is installed (`brew install gz-harmonic`) |
 
 ---
