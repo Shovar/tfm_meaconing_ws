@@ -143,7 +143,7 @@ ros2 bag record -o bags/E2_fast_attack \
 **Objetivo:** Medir TTD cuando el sistema arranca ya bajo ataque.
 
 ```yaml
-activation_delay: 0.0      # Ataque inmediato
+activation_delay: 2.0      # Ataque al inicio
 drift_velocity: 0.2
 tau: 2.0
 beta: 0.5

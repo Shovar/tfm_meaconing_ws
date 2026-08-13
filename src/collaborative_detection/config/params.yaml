@@ -14,15 +14,19 @@
     sigma_uwb: 0.24     # Desviación estándar del ruido UWB (m) - Fishberg et al. 2024 MURP
 
     # --- Parámetros del detector CUSUM ---
-    # Con fórmula signada δ=D_UWB-D_GNSS, bajo H₀ δ oscila alrededor de 0 (ruido se cancela).
-    # β bajo (0.5) permite detectar la señal del ataque (~1.6m) sin falsas alarmas.
-    # τ=3.0: margen suficiente contra ruido, alcanzable en ~4 pasos bajo ataque.
-    beta: 0.5           # Sesgo mínimo detectable (m)
+    # δ = D_UWB - D_GNSS (signado). Bajo H₀ δ ~ N(0, σ_δ) con σ_δ ≈ sqrt(σ_uwb² + 2·σ_gnss²) ≈ 1.4 m,
+    # comparable a la señal del ataque (~1.2 m). Por eso el CUSUM se alimenta de δ FILTRADO
+    # (media móvil de `filter_window` muestras ≈ 1 s) → σ_δ cae a ~0.26 m (~5.5× menos).
+    # Con τ=3.0 (~11σ del ruido filtrado) el baseline (E0, sin ataque) no produce falsas alarmas,
+    # y bajo ataque S_k cruza τ en ~0.6 s.
+    beta: 0.5           # Deriva permitida por paso (m) — referencia CUSUM
     tau: 3.0            # Umbral de detección
-    startup_delay: 5.0  # Segundos de warmup antes de empezar a acumular CUSUM
+    filter_window: 30   # Muestras de la media móvil sobre δ (30 ≈ 1 s @ 30 Hz)
+    alert_confirm_time: 2.0  # Segundos que S_k debe permanecer sobre τ antes de dar la alarma
+    startup_delay: 10.0  # Segundos de warmup (desde el primer dato) antes de acumular CUSUM
 
     # --- Parámetros del atacante ---
-    drift_velocity: 0.2     # Velocidad de alejamiento del punto falso (m/s)
+    drift_velocity: 0.2     # Velocidad de arrastre (drag-off) hacia el punto falso (m/s)
     activation_delay: 30.0  # Tiempo hasta activación del ataque (s)
     attack_type: single_antenna  # Tipo de ataque: 'single_antenna' (implementado), 'pattern' (opcional futuro)
 

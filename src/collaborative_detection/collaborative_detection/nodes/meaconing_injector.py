@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Meaconing Injector Node — Fase 2 del TFM.
+Meaconing Injector Node
 
 Subscribes to /robot1/gnss_clean and /robot2/gnss_clean, and when activated,
-publishes spoofed GNSS positions where both robots converge to the same fake
-drifting point (single-antenna meaconing attack).
+publishes spoofed GNSS positions where both robots are gradually dragged
+toward a common fake target (single-antenna 'drag-off' meaconing attack).
 
 Activation is controlled via a ROS 2 service: /meaconing/set_active (std_srvs/SetBool).
 """
@@ -18,18 +18,20 @@ import numpy as np
 
 class MeaconingInjector(Node):
     """
-    Injects a single-antenna meaconing attack.
+    Injects a single-antenna 'drag-off' meaconing attack.
 
-    When active: both robots' GNSS positions are replaced by the same fake point
-    that drifts away from the last known real position at drift_velocity (m/s).
-    D_GNSS ≈ 0, while D_UWB still reads real distance → massive divergence.
+    When active: both robots' reported GNSS positions are pulled from their true
+    positions toward a common fake target at `drift_velocity` (m/s). D_GNSS
+    collapses from the true inter-robot distance down to ~noise at a rate set by
+    drift_velocity, while D_UWB keeps reading the true distance. Slow drift ⇒ the
+    detector's δ signal (and CUSUM) rises slowly; fast drift ⇒ it rises quickly.
     """
 
     def __init__(self):
         super().__init__('meaconing_injector')
 
         # --- Parameters ---
-        self.drift_velocity = self.declare_parameter('drift_velocity', 0.2).value  # m/s
+        self.drift_velocity = self.declare_parameter('drift_velocity', 0.2).value  # m/s (drag-off speed)
         self.activation_delay = self.declare_parameter('activation_delay', 30.0).value  # s
         self.sigma_gnss = self.declare_parameter('sigma_gnss', 2.0).value
         self.attack_type = self.declare_parameter('attack_type', 'single_antenna').value
@@ -50,7 +52,11 @@ class MeaconingInjector(Node):
         self.start_time = None
         self.last_clean_a = None  # Last clean GNSS position for robot1
         self.last_clean_b = None  # Last clean GNSS position for robot2
-        self.fake_origin = None   # Point where fake positions originate
+        self.fake_origin = None   # Common fake target (spoofed point)
+        self.p0_a = None          # robot1 true position at attack start
+        self.p0_b = None          # robot2 true position at attack start
+        self.drag_d0_a = None     # initial distance robot1 → fake target
+        self.drag_d0_b = None     # initial distance robot2 → fake target
 
         # --- Subscribers (clean GNSS) ---
         self.create_subscription(
@@ -66,8 +72,14 @@ class MeaconingInjector(Node):
         # --- Service ---
         self.srv = self.create_service(SetBool, '/meaconing/set_active', self._srv_callback)
 
-        # --- Timer (drift update) ---
-        self.timer = self.create_timer(0.1, self._timer_callback)  # 10 Hz drift update
+        # --- Timer (drift update + passthrough republish) ---
+        # Republish at the same rate as the incoming GNSS data (update_rate).
+        # The old 10 Hz timer quantized gnss_spoofed to 10 Hz, which correlated
+        # consecutive delta samples and cut the detector's moving-average filter
+        # effectiveness ~3× (effective window ~10 samples instead of 30), leaving
+        # enough residual noise to fire false alarms in the no-attack baseline.
+        self.update_rate = self.declare_parameter('update_rate', 30.0).value
+        self.timer = self.create_timer(1.0 / self.update_rate, self._timer_callback)
 
         # --- Activation delay timer ---
         if self.activation_delay > 0:
@@ -109,42 +121,44 @@ class MeaconingInjector(Node):
             response.message = 'Attack activated'
         else:
             self.fake_origin = None
+            self.p0_a = None
+            self.p0_b = None
+            self.drag_d0_a = None
+            self.drag_d0_b = None
             self.get_logger().info('✅ Meaconing attack deactivated')
             response.success = True
             response.message = 'Attack deactivated'
         return response
 
     def _init_fake_origin(self):
-        """Initialize the fake origin at the average of both robots' last clean positions."""
+        """Snapshot the attack start state: true positions + the common fake target.
+
+        Captures each robot's current reported (clean) position and the midpoint
+        between them as the fake target. The reported positions are then dragged
+        toward that target at `drift_velocity`, so D_GNSS collapses from the true
+        inter-robot distance down to ~noise at a rate set by drift_velocity.
+        """
         if self.fake_origin is None:
             if self.last_clean_a is not None and self.last_clean_b is not None:
                 ax = self.last_clean_a.pose.position.x
                 ay = self.last_clean_a.pose.position.y
                 bx = self.last_clean_b.pose.position.x
                 by = self.last_clean_b.pose.position.y
-                self.fake_origin = (
-                    (ax + bx) / 2.0,
-                    (ay + by) / 2.0,
-                )
+                self.p0_a = (ax, ay)
+                self.p0_b = (bx, by)
+                self.fake_origin = ((ax + bx) / 2.0, (ay + by) / 2.0)
             else:
+                self.p0_a = (0.0, 0.0)
+                self.p0_b = (0.0, 0.0)
                 self.fake_origin = (0.0, 0.0)
+
+            fx, fy = self.fake_origin
+            self.drag_d0_a = max(np.hypot(self.p0_a[0] - fx, self.p0_a[1] - fy), 1e-3)
+            self.drag_d0_b = max(np.hypot(self.p0_b[0] - fx, self.p0_b[1] - fy), 1e-3)
             self.get_logger().info(
-                f'Fake origin set at ({self.fake_origin[0]:.2f}, {self.fake_origin[1]:.2f})')
-
-    def _get_fake_base_x(self, now) -> float:
-        """Return the drifting fake X coordinate (no noise)."""
-        self._init_fake_origin()
-        elapsed = (now - self.start_time).nanoseconds / 1e9
-        drift_distance = self.drift_velocity * elapsed
-        return self.fake_origin[0] + drift_distance * 0.707
-
-    def _get_fake_base_y(self, now) -> float:
-        """Return the drifting fake Y coordinate (no noise)."""
-        self._init_fake_origin()
-        elapsed = (now - self.start_time).nanoseconds / 1e9
-        drift_distance = self.drift_velocity * elapsed
-        return self.fake_origin[1] + drift_distance * 0.707
-
+                f'Drag-off attack: fake target at ({fx:.2f}, {fy:.2f}), '
+                f'pulling robot1 over {self.drag_d0_a:.2f} m and robot2 over '
+                f'{self.drag_d0_b:.2f} m at {self.drift_velocity:.2f} m/s')
 
     def _timer_callback(self):
         now = self.get_clock().now()
@@ -176,21 +190,33 @@ class MeaconingInjector(Node):
 
     def _attack_single_antenna(self, now, now_msg):
         """
-        Single-antenna meaconing: both robots share same drifting base point
-        with independent GNSS noise → D_GNSS ≈ 0 (not exactly 0).
-        """
-        # Both robots share the same drifting base point (single-antenna meaconing),
-        # but each retains independent GNSS noise → D_GNSS ≈ 0 (not exactly 0).
-        fake_base_x = self._get_fake_base_x(now)
-        fake_base_y = self._get_fake_base_y(now)
+        Single-antenna 'drag-off' meaconing: both robots' reported positions are
+        pulled from their true positions toward a common fake target at
+        `drift_velocity` (m/s), each keeping independent GNSS noise.
 
-        for pub, ns in [(self.pub_a, 'robot1'), (self.pub_b, 'robot2')]:
+        D_GNSS collapses from the true inter-robot distance down to ~noise at a
+        rate proportional to drift_velocity, so a slow drift makes the detector's
+        δ signal (and the CUSUM) rise slowly, a fast drift makes it rise quickly.
+        """
+        self._init_fake_origin()
+        elapsed = (now - self.start_time).nanoseconds / 1e9
+        fx, fy = self.fake_origin
+
+        for p0, d0, pub in [
+            (self.p0_a, self.drag_d0_a, self.pub_a),
+            (self.p0_b, self.drag_d0_b, self.pub_b),
+        ]:
+            # Linear drag from the true position toward the fake target.
+            progress = min(1.0, self.drift_velocity * elapsed / d0)
+            x = p0[0] + progress * (fx - p0[0])
+            y = p0[1] + progress * (fy - p0[1])
+
             msg = PoseStamped()
             msg.header.stamp = now_msg
             msg.header.frame_id = 'odom'
             msg.pose.position = Point(
-                x=fake_base_x + np.random.normal(0.0, self.sigma_gnss),
-                y=fake_base_y + np.random.normal(0.0, self.sigma_gnss),
+                x=x + np.random.normal(0.0, self.sigma_gnss),
+                y=y + np.random.normal(0.0, self.sigma_gnss),
                 z=0.0,
             )
             msg.pose.orientation.w = 1.0

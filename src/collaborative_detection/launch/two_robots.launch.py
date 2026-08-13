@@ -20,9 +20,21 @@ from launch.actions import (
     IncludeLaunchDescription,
     TimerAction,
 )
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, PushRosNamespace
+
+# Force FastDDS to use UDP only. The built-in Shared Memory (SHM) transport
+# hangs on macOS when many nodes start at once, stalling robot2's spawn and
+# the ros_gz_bridge nodes. Set at import time so every spawned node inherits it.
+os.environ.setdefault(
+    'FASTRTPS_DEFAULT_PROFILES_FILE',
+    os.path.join(
+        get_package_share_directory('collaborative_detection'),
+        'config', 'fastdds_udp_only.xml',
+    ),
+)
 
 TURTLEBOT3_MODEL = os.environ.get('TURTLEBOT3_MODEL', 'waffle')
 MODEL_FOLDER = f'turtlebot3_{TURTLEBOT3_MODEL}'
@@ -215,6 +227,7 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('y1', default_value='0.0'))
     ld.add_action(DeclareLaunchArgument('x2', default_value='3.0'))
     ld.add_action(DeclareLaunchArgument('y2', default_value='0.0'))
+    ld.add_action(DeclareLaunchArgument('gui', default_value='true'))
 
     ld.add_action(AppendEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
@@ -232,6 +245,9 @@ def generate_launch_description():
         }.items(),
     ))
 
+    # GUI client — skipped in headless mode (gui:=false). The OGRE renderer
+    # is broken on macOS and the GUI is not needed to record rosbags, so the
+    # experiment runner disables it to save resources.
     ld.add_action(IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(ros_gz_sim_pkg, 'launch', 'gz_sim.launch.py')
@@ -240,6 +256,7 @@ def generate_launch_description():
             'gz_args': '-g -v2 ',
             'on_exit_shutdown': 'true',
         }.items(),
+        condition=IfCondition(LaunchConfiguration('gui')),
     ))
 
     # Robot 1 + its bridge (global)

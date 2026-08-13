@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Autonomous Robot Mover Node — Fase 0 (complemento).
+Autonomous Robot Mover Node
 
 Publishes cmd_vel (TwistStamped) to both TurtleBot3 robots so they move
 autonomously during experiments. This ensures D_UWB varies naturally over time,

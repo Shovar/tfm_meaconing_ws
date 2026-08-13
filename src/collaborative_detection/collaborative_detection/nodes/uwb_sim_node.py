@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UWB Ranging Simulator Node — Fase 1 del TFM.
+UWB Ranging Simulator Node
 
 Subscribes to /robot1/odom and /robot2/odom (ground truth from Gazebo),
 converts from local odom frame to global world frame using spawn offsets,

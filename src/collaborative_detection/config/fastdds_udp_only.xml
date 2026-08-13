@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  FastDDS UDP-only profile (macOS fix).
+
+  FastDDS's built-in Shared Memory (SHM) transport is unstable on macOS:
+  every node tries to open lock files for a fixed range of SHM ports
+  (fastrtps_port7000, 7004, ...) and often fails with:
+
+      [RTPS_TRANSPORT_SHM Error] Failed init_port fastrtps_port7000:
+          open_and_lock_file failed
+
+  With 14+ nodes starting at once (Gazebo bridges, sim nodes, detector...),
+  this causes nodes to HANG during DDS init — observed effects:
+    * `ros_gz_sim create` for robot2 never reaches Gazebo → robot missing
+    * bridges never create their topics → cmd_vel stops flowing
+
+  This profile disables the built-in transports entirely and uses UDPv4
+  only. Enable it by setting:
+
+      export FASTRTPS_DEFAULT_PROFILES_FILE=<path>/fastdds_udp_only.xml
+
+  (experiment.launch.py sets it automatically for all launched nodes.)
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>udp_transport</transport_id>
+            <type>UDPv4</type>
+        </transport_descriptor>
+    </transport_descriptors>
+
+    <participant profile_name="udp_only" is_default_profile="true">
+        <rtps>
+            <!-- Disable built-in transports (SHM + default UDP) -->
+            <useBuiltinTransports>false</useBuiltinTransports>
+            <!-- Register UDPv4 as the only user transport -->
+            <userTransports>
+                <transport_id>udp_transport</transport_id>
+            </userTransports>
+        </rtps>
+    </participant>
+</profiles>

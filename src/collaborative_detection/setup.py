@@ -16,6 +16,7 @@ setup(
         ]),
         ('share/' + package_name + '/config', [
             'config/params.yaml',
+            'config/fastdds_udp_only.xml',
         ]),
     ],
     install_requires=['setuptools'],

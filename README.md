@@ -57,7 +57,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │   │   └── two_robots.launch.py          # Two TurtleBot3 robots in Gazebo Sim
 │   │
 │   ├── scripts/
-│   │   └── run_experiments.sh            # Automated experiment runner (E0–E4)
+│   │   └── run_experiment.sh             # Run ONE experiment at a time (E0–E4)
 │   │
 │   ├── analysis/
 │   │   └── plot_results.ipynb            # Jupyter notebook for rosbag analysis
@@ -127,7 +127,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 1. **Gazebo Sim** runs two TurtleBot3 Waffle robots moving in autonomous circles.
 2. **GNSS Sim Node** reads odometry from both robots, converts from local `odom` frame to global `world` frame using spawn offsets, adds Gaussian noise, and publishes `gnss_clean` at 30 Hz.
 3. **UWB Sim Node** reads odometry from both robots, converts to world frame, computes the Euclidean distance, adds Gaussian noise (σ = 0.24 m), and publishes `uwb_distance` at 30 Hz.
-4. **Meaconing Injector** subscribes to `gnss_clean` and, when inactive, passes it through as `gnss_spoofed`. When the attack activates (auto-delay or manual service call), both robots' GNSS outputs are replaced with the **same drifting fake point** plus independent noise — simulating a single-antenna meaconing attack.
+4. **Meaconing Injector** subscribes to `gnss_clean` and, when inactive, passes it through as `gnss_spoofed`. When the attack activates (auto-delay or manual service call), both robots' GNSS outputs are **gradually dragged toward a common fake target at `drift_velocity`** plus independent noise — a single-antenna 'drag-off' meaconing attack. Slower drift collapses `D_GNSS` more slowly, so the CUSUM rises at a rate proportional to `drift_velocity`.
 5. **CUSUM Detector** subscribes to `gnss_spoofed` (both robots) and `uwb_distance`, computes $D_{GNSS}$ and $\delta$, updates the CUSUM statistic, and publishes alerts.
 
 ### Topics
@@ -222,35 +222,37 @@ ros2 topic echo /system/meaconing_alert   # Should become true
 
 ## Experiments (E0–E4)
 
-The script `scripts/run_experiments.sh` automates five experiments:
+The script `scripts/run_experiment.sh` runs **one experiment at a time** (run them one-by-one so Gazebo and node processes never accumulate):
 
-| Experiment | Parameter | Description |
-|---|---|---|
-| **E0 — Baseline** | `activation_delay: 9999.0` | No attack — validates **zero false positives** |
-| **E1 — Slow drift** | `drift_velocity: 0.1` | Subtle attack, measures detection sensitivity |
-| **E2 — Fast drift** | `drift_velocity: 0.5` | Obvious attack, measures minimum TTD |
-| **E3 — Hot start** | `activation_delay: 0.0` | Attack active from the beginning |
-| **E4 — Wide separation** | `x2: 5.0` | Robots 5 m apart — tests distance effect on TTD |
+| Experiment | Command | Parameter | Description |
+|---|---|---|---|
+| **E0 — Baseline** | `run_experiment.sh e0` | `activation_delay: 9999.0` | No attack — validates **zero false positives** |
+| **E1 — Slow drift** | `run_experiment.sh e1` | `drift_velocity: 0.1` | Subtle attack, measures detection sensitivity |
+| **E2 — Fast drift** | `run_experiment.sh e2` | `drift_velocity: 0.5` | Obvious attack, measures minimum TTD |
+| **E3 — Hot start** | `run_experiment.sh e3` | `activation_delay: 0.0` | Attack active from the beginning |
+| **E4 — Wide separation** | `run_experiment.sh e4` | `x2: 5.0` | Robots 5 m apart — tests distance effect on TTD |
 
-### Running all experiments
+### Running an experiment
 
 ```bash
 cd ~/tfm_meaconing_ws
 source install/setup.bash
 export TURTLEBOT3_MODEL=waffle
-./src/collaborative_detection/scripts/run_experiments.sh
+./src/collaborative_detection/scripts/run_experiment.sh e1
 ```
 
-Each experiment runs for **90 seconds** and records a rosbag in `results/E*_<name>/`. The script automatically:
+Each run lasts **90 seconds** by default (override with `--duration N`) and records a
+rosbag in `results/e<X>_<name>/`. The script automatically:
 
-1. Modifies `params.yaml` for the experiment
-2. Rebuilds the package
-3. Launches Gazebo + all nodes
-4. Records a rosbag with all relevant topics
-5. Kills all processes cleanly
-6. Saves a parameter snapshot
+1. Kills any leftover processes from previous runs (clean slate)
+2. Modifies `params.yaml` for the experiment
+3. Rebuilds the package and verifies the params reached the install tree
+4. Launches Gazebo **headless** (no GUI) + all nodes — pass `--gui` to keep the GUI
+5. Records a rosbag with all relevant topics
+6. Tears down every node/Gazebo/bridge process so nothing lingers
 
-> **Total runtime**: ~10 minutes for all 5 experiments.
+> **Tip**: run one experiment, check the rosbag, then run the next. Headless mode
+> avoids the broken OGRE GUI on macOS and saves a lot of CPU/RAM.
 
 ### Manual activation for ad-hoc tests
 

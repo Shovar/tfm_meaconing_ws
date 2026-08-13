@@ -15,11 +15,25 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
+    DeclareLaunchArgument,
     IncludeLaunchDescription,
     TimerAction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+# Force FastDDS to use UDP only. The built-in Shared Memory (SHM) transport
+# hangs on macOS when many nodes start at once (Gazebo bridges, sim nodes,
+# detector...), which made robot2's spawn and bridges stall mid-init.
+# Setting the env var at import time guarantees every spawned node inherits it.
+os.environ.setdefault(
+    'FASTRTPS_DEFAULT_PROFILES_FILE',
+    os.path.join(
+        get_package_share_directory('collaborative_detection'),
+        'config', 'fastdds_udp_only.xml',
+    ),
+)
 
 
 def generate_launch_description():
@@ -28,11 +42,25 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
+    ld.add_action(DeclareLaunchArgument('gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('x1', default_value='0.0'))
+    ld.add_action(DeclareLaunchArgument('y1', default_value='0.0'))
+    ld.add_action(DeclareLaunchArgument('x2', default_value='3.0'))
+    ld.add_action(DeclareLaunchArgument('y2', default_value='0.0'))
+
     # --- 1. Two robots in Gazebo ---
+    # Forward the spawn positions so e.g. `x2:=5.0` reaches the robot spawner.
     two_robots = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_dir, 'launch', 'two_robots.launch.py')
-        )
+        ),
+        launch_arguments={
+            'gui': LaunchConfiguration('gui'),
+            'x1': LaunchConfiguration('x1'),
+            'y1': LaunchConfiguration('y1'),
+            'x2': LaunchConfiguration('x2'),
+            'y2': LaunchConfiguration('y2'),
+        }.items(),
     )
     ld.add_action(two_robots)
 
