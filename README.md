@@ -164,7 +164,81 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 
 ---
 
-## Setup & Build
+## Linux Setup Without Pixi (Native ROS 2 Jazzy)
+
+If you prefer not to use **pixi**, you can install ROS 2 Jazzy and Gazebo Sim natively on Ubuntu 24.04 (Noble) or other compatible Linux distributions.
+
+### 1. Install ROS 2 Jazzy
+
+```bash
+# Add ROS 2 apt repository
+sudo apt update && sudo apt install -y software-properties-common curl
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Install ROS 2 Jazzy desktop (includes rviz2, rosbag2, etc.)
+sudo apt update && sudo apt install -y ros-jazzy-desktop
+
+# Install additional packages used by this project
+sudo apt install -y \
+  ros-jazzy-ros-gz-sim \
+  ros-jazzy-turtlebot3 \
+  ros-jazzy-turtlebot3-simulations \
+  ros-jazzy-gazebo-ros-pkgs \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-pip
+```
+
+### 2. Install Gazebo Sim (Harmonic)
+
+ROS 2 Jazzy pairs with **Gazebo Harmonic**. The `ros-jazzy-ros-gz-sim` package above provides the ROS-Gazebo bridge. For the Gazebo simulator itself:
+
+```bash
+# Add Gazebo repository
+sudo apt update && sudo apt install -y lsb-release wget gnupg
+sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+# Install Gazebo Harmonic
+sudo apt update && sudo apt install -y gz-harmonic
+```
+
+### 3. Initialize rosdep and install Python dependencies
+
+```bash
+# Initialize rosdep
+sudo rosdep init
+rosdep update
+
+# Install Python dependencies (numpy, matplotlib, etc. for analysis)
+pip3 install --user numpy matplotlib scipy
+# Or install system-wide:
+# sudo apt install -y python3-numpy python3-matplotlib python3-scipy
+```
+
+### 4. Source ROS 2 environment
+
+Add to your `~/.bashrc` (or run manually each session):
+
+```bash
+echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 5. Build the workspace
+
+```bash
+cd ~/tfm_meaconing_ws
+colcon build --packages-select collaborative_detection
+source install/setup.bash
+```
+
+> **Note**: After building, you must source `install/setup.bash` in every new terminal (or add it to `~/.bashrc` after the ROS 2 source line).
+
+---
+
+## Setup & Build (Using Pixi)
 
 ### 1. Activate the RoboStack environment
 
@@ -368,17 +442,23 @@ Example plots generated with `plot_results.py` from a full E0–E4 run.
   <img src="docs/images/cusum_evolution.png" alt="CUSUM statistic S_k per experiment" width="90%"/>
 </p>
 
+**CUSUM statistic $S_k$ over time for all five experiments.** The red shaded regions indicate when the alarm is active (after the 2 s confirmation window). E0 (baseline) stays at zero — zero false positives. E1–E4 show $S_k$ rising and crossing the threshold $\tau=3.0$ at different rates depending on attack parameters.
+
 ### UWB distance (physical inter-robot distance)
 
 | E0 — Baseline | E1 — Slow drift | E2 — Fast drift | E3 — Hot start | E4 — Wide separation |
 |:---:|:---:|:---:|:---:|:---:|
 | <img src="docs/images/uwb_distance_e0_baseline.png" width="200"/> | <img src="docs/images/uwb_distance_e1_slow_drift.png" width="200"/> | <img src="docs/images/uwb_distance_e2_fast_drift.png" width="200"/> | <img src="docs/images/uwb_distance_e3_hot_start.png" width="200"/> | <img src="docs/images/uwb_distance_e4_wide_separation.png" width="200"/> |
 
+**Physical UWB-measured distance between robots** (ground truth, unaffected by meaconing). E0–E3: robots maintain ~3 m separation during circular motion. E4: robots start 5 m apart. The distance oscillates slightly due to the robots' circular trajectories.
+
 ### Fixed threshold vs CUSUM
 
 | E0 — Baseline | E1 — Slow drift | E2 — Fast drift | E3 — Hot start | E4 — Wide separation |
 |:---:|:---:|:---:|:---:|:---:|
 | <img src="docs/images/threshold_vs_cusum_e0_baseline.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e1_slow_drift.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e2_fast_drift.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e3_hot_start.png" width="200"/> | <img src="docs/images/threshold_vs_cusum_e4_wide_separation.png" width="200"/> |
+
+**Comparison of fixed-threshold detection vs. CUSUM.** The blue line shows the raw innovation $\delta = D_{UWB} - D_{GNSS}$; the orange line shows a fixed threshold at $\tau=3.0$; the green line shows the CUSUM statistic $S_k$. CUSUM accumulates evidence and avoids false alarms from noise spikes that would trigger a fixed threshold (especially visible in E0).
 
 ---
 
