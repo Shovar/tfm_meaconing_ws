@@ -21,6 +21,8 @@
 #   e2  fast_drift        drift_velocity=0.5
 #   e3  hot_start         activation_delay=0      (attack from t=0)
 #   e4  wide_separation   robot2.x=5.0
+#   e5  waypoint_attack   waypoint follower + meaconing (physical drift measurement)
+#   e5_ref reference       waypoint follower WITHOUT meaconing (reference trajectory)
 # =============================================================================
 
 set -eo pipefail
@@ -63,7 +65,7 @@ usage() {
 EXP=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        e0|e1|e2|e3|e4)
+        e0|e1|e2|e3|e4|e5|e5_ref)
             EXP="$1"
             ;;
         --duration)
@@ -85,7 +87,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${EXP}" ]]; then
-    echo "Error: specify an experiment (e0, e1, e2, e3, e4)" >&2
+    echo "Error: specify an experiment (e0, e1, e2, e3, e4, e5, e5_ref)" >&2
     usage
 fi
 
@@ -98,12 +100,15 @@ case "${EXP}" in
     e2) NAME="fast_drift" ;;
     e3) NAME="hot_start" ;;
     e4) NAME="wide_separation" ;;
+    e5) NAME="waypoint_attack" ;;
+    e5_ref) NAME="waypoint_reference" ;;
 esac
 RUN_ID="${EXP}_${NAME}"
 
-# Per-experiment launch arguments (spawn positions etc.)
+# Per-experiment launch arguments (spawn positions, waypoint mode, etc.)
 case "${EXP}" in
     e4) EXP_LAUNCH_ARGS="x2:=5.0" ;;
+    e5|e5_ref) EXP_LAUNCH_ARGS="waypoint_mode:=true x2:=0.0 y2:=2.0" ;;
     *)  EXP_LAUNCH_ARGS="" ;;
 esac
 
@@ -156,6 +161,23 @@ apply_params() {
             set_param startup_delay 5.0
             set_param robot2.x 5.0
             ;;
+        e5)
+            set_param activation_delay 30.0
+            set_param drift_velocity 0.2
+            set_param robot2.x 0.0
+            set_param robot2.y 2.0
+            set_param publish_robot2 False
+            set_param robot2_waypoint_mode True
+            set_param startup_delay 15.0
+            ;;
+        e5_ref)
+            set_param activation_delay 9999.0
+            set_param robot2.x 0.0
+            set_param robot2.y 2.0
+            set_param publish_robot2 False
+            set_param robot2_waypoint_mode True
+            set_param startup_delay 15.0
+            ;;
     esac
 }
 
@@ -179,6 +201,7 @@ kill_everything() {
     local pat
     for pat in \
         "robot_mover_node" \
+        "waypoint_follower_node" \
         "cusum_detector_node" \
         "gnss_sim_node" \
         "gnss_viz_node" \
@@ -245,6 +268,33 @@ main() {
     sleep 2
     kill_everything kill
     echo "  [cleanup] OK"
+
+    # --- 0b. E5 dependency: run the reference pass if it doesn't exist ---
+    if [[ "${EXP}" == "e5" ]]; then
+        local ref_dir="${RESULTS_DIR}/e5_ref_waypoint_reference"
+        if [[ ! -d "${ref_dir}" ]]; then
+            echo ""
+            echo "  [e5 prereq] Reference trajectory not found → running e5_ref first..."
+            echo "  [e5 prereq] (This records the ground-truth trajectory without meaconing)"
+            echo ""
+            # Restore params before calling ourselves (the trap hasn't fired yet)
+            cp "${PARAMS_BAK}" "${PARAMS_SRC}"
+            # Run the reference pass (with the same duration)
+            "$0" e5_ref --duration "${DURATION}"
+            if [[ ! -d "${ref_dir}" ]]; then
+                echo "  [e5 prereq] ERROR: e5_ref did not produce results at ${ref_dir}" >&2
+                exit 1
+            fi
+            echo ""
+            echo "  [e5 prereq] Reference trajectory recorded. Proceeding with attack experiment..."
+            echo ""
+            # Re-apply e5 params (the recursive call restored params from its own
+            # trap — the build+sync below will pick them up)
+            apply_params
+        else
+            echo "  [e5 prereq] Reference trajectory already exists at ${ref_dir}"
+        fi
+    fi
 
     # --- 1. Params ---
     echo "  [params] Applying ${RUN_ID} parameters..."

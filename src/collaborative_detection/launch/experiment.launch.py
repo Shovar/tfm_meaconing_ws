@@ -8,7 +8,8 @@ Launches the complete TFM pipeline:
   3. UWB ranging simulator node (adds noise to inter-robot distance)
   4. Meaconing injector (spoofs GNSS when activated)
   5. CUSUM detector (publishes alerts on meaconing detection)
-  6. Robot mover (autonomous circular motion)
+  6. Robot mover (autonomous circular motion) — default mode
+  7. Waypoint follower (E5 mode, GNSS-spoofed navigation)
 """
 import os
 
@@ -19,6 +20,7 @@ from launch.actions import (
     IncludeLaunchDescription,
     TimerAction,
 )
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -47,6 +49,7 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('y1', default_value='0.0'))
     ld.add_action(DeclareLaunchArgument('x2', default_value='3.0'))
     ld.add_action(DeclareLaunchArgument('y2', default_value='0.0'))
+    ld.add_action(DeclareLaunchArgument('waypoint_mode', default_value='false'))
 
     # --- 1. Two robots in Gazebo ---
     # Forward the spawn positions so e.g. `x2:=5.0` reaches the robot spawner.
@@ -104,17 +107,32 @@ def generate_launch_description():
     )
     ld.add_action(TimerAction(period=6.0, actions=[cusum_node]))
 
-    # --- 6. Robot mover (autonomous circular motion) ---
+    # --- 6. Robot mover (autonomous circular motion) — only in default mode ---
+    # In waypoint mode, the waypoint_follower_node handles robot1 (GNSS-based
+    # navigation) AND robot2 (open-loop circle) so robot_mover_node is skipped
+    # entirely — this avoids cmd_vel conflicts on /robot1/cmd_vel.
     mover_node = Node(
         package='collaborative_detection',
         executable='robot_mover_node',
         name='robot_mover_node',
         output='screen',
         parameters=[config],
+        condition=UnlessCondition(LaunchConfiguration('waypoint_mode')),
     )
     ld.add_action(TimerAction(period=7.0, actions=[mover_node]))
 
-    # --- 7. GNSS visualizer (RViz2 markers) ---
+    # --- 7. Waypoint follower (E5 mode: replaces robot_mover_node) ---
+    waypoint_node = Node(
+        package='collaborative_detection',
+        executable='waypoint_follower_node',
+        name='waypoint_follower_node',
+        output='screen',
+        parameters=[config],
+        condition=IfCondition(LaunchConfiguration('waypoint_mode')),
+    )
+    ld.add_action(TimerAction(period=7.0, actions=[waypoint_node]))
+
+    # --- 8. GNSS visualizer (RViz2 markers) ---
     viz_node = Node(
         package='collaborative_detection',
         executable='gnss_viz_node',

@@ -33,6 +33,7 @@ setup(
             'cusum_detector_node = collaborative_detection.nodes.cusum_detector_node:main',
             'robot_mover_node = collaborative_detection.nodes.robot_mover_node:main',
             'gnss_viz_node = collaborative_detection.nodes.gnss_viz_node:main',
+            'waypoint_follower_node = collaborative_detection.nodes.waypoint_follower_node:main',
         ],
     },
 )

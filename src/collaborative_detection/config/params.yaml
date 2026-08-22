@@ -49,3 +49,12 @@
     robot1_angular_vel: 0.30  # Velocidad angular robot 1 (rad/s)
     robot2_linear_vel: 0.12   # Velocidad lineal robot 2 (m/s)
     robot2_angular_vel: 0.25  # Velocidad angular robot 2 (rad/s)
+
+    # --- Waypoint follower (E5) ---
+    waypoint_x: 5.0           # Coordenada X del waypoint (m)
+    waypoint_y: 0.0           # Coordenada Y del waypoint (m)
+    linear_speed: 0.2         # Velocidad lineal máxima hacia el waypoint (m/s)
+    linear_gain: 0.3          # Ganancia proporcional de velocidad lineal (m/s por m de error)
+    angular_gain: 1.0         # Ganancia proporcional del control de rumbo (rad/s por rad de error)
+    publish_robot2: false      # Si true, el nodo publica también cmd_vel de robot2 (modo E5 legacy)
+    robot2_waypoint_mode: false  # Si true, robot2 sigue el waypoint usando odometría (no GNSS)
