@@ -34,6 +34,16 @@ The CUSUM is superior to a fixed threshold because it **accumulates evidence ove
 
 ---
 
+## Experiment 5 Demo
+
+<p align="center">
+  <img src="docs/images/e5_experiment.gif" alt="E5 Experiment — Waypoint follower under meaconing attack" width="90%"/>
+</p>
+
+**Experiment 5 — Waypoint-follower under meaconing attack.** Robot1 (red trajectory) navigates toward a waypoint using GNSS-spoofed position; robot2 (green) uses clean odometry. When the attack activates (purple line), robot1's controller steers it off course while the CUSUM detector accumulates evidence. Three synchronized panels: (1) CUSUM S_k + innovation δ, (2) physical drift ‖p(t) − p_ref(t)‖, (3) top-down robot trajectories.
+
+---
+
 ## Project Structure
 
 ```
@@ -57,10 +67,11 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │   │   └── two_robots.launch.py          # Two TurtleBot3 robots in Gazebo Sim
 │   │
 │   ├── scripts/
-│   │   └── run_experiment.sh             # Run ONE experiment at a time (E0–E4)
+│   │   └── run_experiment.sh             # Run ONE experiment at a time (E0–E5)
 │   │
 │   ├── analysis/
-│   │   └── plot_results.ipynb            # Jupyter notebook for rosbag analysis
+│   │   ├── plot_results.py              # Generate detection metrics and plots from rosbags
+│   │   └── make_video.py                # Generate E5 experiment video (3-panel animation)
 │   │
 │   └── collaborative_detection/          # Python package
 │       ├── __init__.py
@@ -70,6 +81,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │           ├── meaconing_injector.py      # Attack injector (spoofs GNSS positions)
 │           ├── cusum_detector_node.py     # CUSUM sequential detector
 │           ├── robot_mover_node.py        # Autonomous circular motion controller
+│           ├── waypoint_follower_node.py  # E5: GNSS-spoofed waypoint navigation
 │           └── gnss_viz_node.py           # RViz2 Marker visualizer
 │
 ├── build/                                # Colcon build artifacts (auto-generated)
@@ -80,7 +92,9 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
     ├── E1_slow_drift/
     ├── E2_fast_drift/
     ├── E3_hot_start/
-    └── E4_wide_separation/
+    ├── E4_wide_separation/
+    ├── e5_ref_waypoint_reference/
+    └── e5_waypoint_attack/
 ```
 
 ---
@@ -294,7 +308,7 @@ ros2 topic echo /system/meaconing_alert   # Should become true
 
 ---
 
-## Experiments (E0–E4)
+## Experiments (E0–E5)
 
 The script `scripts/run_experiment.sh` runs **one experiment at a time** (run them one-by-one so Gazebo and node processes never accumulate):
 
@@ -305,6 +319,7 @@ The script `scripts/run_experiment.sh` runs **one experiment at a time** (run th
 | **E2 — Fast drift** | `run_experiment.sh e2` | `drift_velocity: 0.5` | Obvious attack, measures minimum TTD |
 | **E3 — Hot start** | `run_experiment.sh e3` | `activation_delay: 0.0` | Attack active from the beginning |
 | **E4 — Wide separation** | `run_experiment.sh e4` | `x2: 5.0` | Robots 5 m apart — tests distance effect on TTD |
+| **E5 — Waypoint attack** | `run_experiment.sh e5` | `waypoint_mode: true` | Robot1 navigates via GNSS-spoofed position — measures **physical drift** before detection |
 
 ### Running an experiment
 
@@ -367,6 +382,12 @@ All parameters live in `config/params.yaml` under the `/**` wildcard node.
 | `robot1_angular_vel` | `0.30` | Robot 1 angular velocity (rad/s) |
 | `robot2_linear_vel` | `0.12` | Robot 2 linear velocity (m/s) |
 | `robot2_angular_vel` | `0.25` | Robot 2 angular velocity (rad/s) |
+| `waypoint_x` / `waypoint_y` | `5.0` / `0.0` | E5 waypoint target coordinates (m) |
+| `linear_speed` | `0.2` | E5 max linear speed toward waypoint (m/s) |
+| `linear_gain` | `0.3` | E5 proportional gain — speed per metre of remaining distance |
+| `angular_gain` | `1.0` | E5 proportional gain — turn rate per radian of heading error |
+| `publish_robot2` | `false` | If `true`, robot2 runs open-loop circle (legacy mode) |
+| `robot2_waypoint_mode` | `false` | E5: if `true`, robot2 follows waypoint via odometry (ground truth) |
 
 ---
 
@@ -434,7 +455,7 @@ The script automatically:
 
 ## Example Results
 
-Example plots generated with `plot_results.py` from a full E0–E4 run.
+Example plots generated with `plot_results.py` from a full E0–E5 run.
 
 ### CUSUM evolution
 
