@@ -132,14 +132,4 @@ def generate_launch_description():
     )
     ld.add_action(TimerAction(period=7.0, actions=[waypoint_node]))
 
-    # --- 8. GNSS visualizer (RViz2 markers) ---
-    viz_node = Node(
-        package='collaborative_detection',
-        executable='gnss_viz_node',
-        name='gnss_viz_node',
-        output='screen',
-        parameters=[config],
-    )
-    ld.add_action(TimerAction(period=7.5, actions=[viz_node]))
-
     return ld

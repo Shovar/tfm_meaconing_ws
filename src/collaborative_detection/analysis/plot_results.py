@@ -508,6 +508,323 @@ def main():
     elif e5_attack_dirs and e5_ref_dir is None:
         print("\n[E5] No reference trajectory found — run e5_ref first, then e5")
 
+    # ================================================================== #
+    # 7. E6: Dual-meaconing physical drift + trajectory analysis         #
+    # ================================================================== #
+    e6_attack_dirs = [d for d in exp_dirs
+                      if d.name.startswith("e6_") and "ref" not in d.name]
+
+    if e6_attack_dirs and e5_ref_dir is not None:
+        print("\n" + "=" * 60)
+        print("E6 — DUAL MEACONING PHYSICAL DRIFT ANALYSIS")
+        print("=" * 60)
+
+        ref_r1 = load_odom_trajectory(e5_ref_dir, "/robot1/odom",
+                                      R1_SPAWN[0], R1_SPAWN[1])
+        ref_r2 = load_odom_trajectory(e5_ref_dir, "/robot2/odom",
+                                      R2_SPAWN[0], R2_SPAWN[1])
+        if ref_r1 is None:
+            print("  Could not load reference R1 trajectory — skipping E6")
+        else:
+            for e6d in e6_attack_dirs:
+                atk_r1 = load_odom_trajectory(e6d, "/robot1/odom",
+                                              R1_SPAWN[0], R1_SPAWN[1])
+                atk_r2 = load_odom_trajectory(e6d, "/robot2/odom",
+                                              R2_SPAWN[0], R2_SPAWN[1])
+                atk_data = experiments.get(e6d.name, {})
+
+                if atk_r1 is None:
+                    print(f"  Could not load attack R1 odom from {e6d.name}")
+                    continue
+
+                t_attack = attack_start_time(atk_data)
+                t_alert = alert_time(atk_data)
+
+                # ---- Match ref → attack time grid ------------------------ #
+                common_len = min(len(ref_r1["time"]), len(atk_r1["time"]))
+                t_common = atk_r1["time"][:common_len]
+
+                ref_x = np.interp(t_common, ref_r1["time"], ref_r1["x"])
+                ref_y = np.interp(t_common, ref_r1["time"], ref_r1["y"])
+                atk_x = atk_r1["x"][:common_len]
+                atk_y = atk_r1["y"][:common_len]
+
+                drift_r1 = np.sqrt((atk_x - ref_x) ** 2 + (atk_y - ref_y) ** 2)
+
+                # Robot2 drift (vs ref_r2 if available)
+                has_r2 = atk_r2 is not None and ref_r2 is not None
+                drift_r2 = None
+                r2_x = r2_y = None
+                if has_r2:
+                    r2_x = atk_r2["x"]
+                    r2_y = atk_r2["y"]
+                    ref_r2_x = np.interp(t_common, ref_r2["time"], ref_r2["x"])
+                    ref_r2_y = np.interp(t_common, ref_r2["time"], ref_r2["y"])
+                    r2_len = min(len(r2_x), len(t_common))
+                    drift_r2 = np.sqrt(
+                        (r2_x[:r2_len] - ref_r2_x[:r2_len]) ** 2 +
+                        (r2_y[:r2_len] - ref_r2_y[:r2_len]) ** 2
+                    )
+
+                # ---- Drift plot ----------------------------------------- #
+                fig, ax = plt.subplots(figsize=(14, 5))
+                ax.plot(t_common[:len(drift_r1)], drift_r1, "r-", lw=1.2,
+                        label="R1 physical drift (m)")
+                if drift_r2 is not None:
+                    ax.plot(t_common[:len(drift_r2)], drift_r2, "g-", lw=1.2,
+                            label="R2 physical drift (m)")
+                if t_attack is not None:
+                    ax.axvline(t_attack, color="purple", ls=":", lw=2.0,
+                               label="Attack activated")
+                if t_alert is not None:
+                    ax.axvline(t_alert, color="red", ls="--", lw=2.0,
+                               label="CUSUM alert")
+                    idx_alert = np.searchsorted(t_common, t_alert)
+                    if idx_alert < len(drift_r1):
+                        drift_at_alert = drift_r1[idx_alert]
+                        ax.annotate(
+                            f"R1 drift at detection: {drift_at_alert:.2f} m",
+                            xy=(t_alert, drift_at_alert),
+                            xytext=(t_alert + 2, drift_at_alert + 0.1),
+                            arrowprops=dict(arrowstyle="->", color="red"),
+                            fontsize=10, color="red",
+                        )
+                # TTD badge
+                if t_attack is not None and t_alert is not None:
+                    ttd = t_alert - t_attack
+                    ax.annotate(
+                        f"TTD = {ttd:.2f} s",
+                        xy=(0.5, 0.08), xycoords="axes fraction",
+                        fontsize=12, fontweight="bold", color="darkred", ha="center",
+                        bbox=dict(boxstyle="round", facecolor="lightyellow",
+                                  edgecolor="darkred", alpha=0.9),
+                    )
+                ax.set_xlabel("Time (s)")
+                ax.set_ylabel("Physical drift (m)")
+                ax.set_title(
+                    f"{e6d.name} — Dual meaconing: both robots drift\n"
+                    f"R1(red): meaconed GNSS | R2(green): meaconed GNSS"
+                )
+                ax.legend(loc="upper left")
+                ax.grid(True, alpha=0.3)
+                out = PLOTS_DIR / f"e6_physical_drift_{e6d.name}.png"
+                fig.tight_layout()
+                fig.savefig(out, bbox_inches="tight", dpi=150)
+                plt.close(fig)
+                print(f"Saved: {out}")
+
+                # ---- Trajectory plot (top-down) ------------------------- #
+                fig, ax = plt.subplots(figsize=(11, 9))
+
+                # Reference R1 + R2
+                ax.plot(ref_x, ref_y, "b-", lw=1.0, alpha=0.5,
+                        label="R1 ref (clean GNSS)")
+                if has_r2:
+                    ref_r2_x_full = np.interp(
+                        t_common, ref_r2["time"], ref_r2["x"])
+                    ref_r2_y_full = np.interp(
+                        t_common, ref_r2["time"], ref_r2["y"])
+                    ax.plot(ref_r2_x_full, ref_r2_y_full, "c-", lw=1.0, alpha=0.5,
+                            label="R2 ref (clean GNSS)")
+
+                # Attack R1 + R2 (both meaconed)
+                ax.plot(atk_x, atk_y, "r-", lw=1.0, alpha=0.7,
+                        label="R1 (meaconed → drifts)")
+                if has_r2:
+                    ax.plot(r2_x, r2_y, "orange", lw=1.0, alpha=0.7,
+                            label="R2 (meaconed → drifts)")
+
+                # ---- Waypoints + routes for both robots ----------------- #
+                for i, (wx, wy) in enumerate(E5_WP_R1):
+                    ax.scatter(wx, wy, marker="*", s=200, c="orangered",
+                               edgecolors="black", linewidths=0.8, zorder=10)
+                    ax.annotate(f"R1-WP{i+1}", (wx + 0.2, wy + 0.2),
+                                fontsize=8, fontweight="bold", color="darkred")
+                for i, (wx, wy) in enumerate(E5_WP_R2):
+                    ax.scatter(wx, wy, marker="*", s=200, c="limegreen",
+                               edgecolors="black", linewidths=0.8, zorder=10)
+                    ax.annotate(f"R2-WP{i+1}", (wx + 0.2, wy + 0.2),
+                                fontsize=8, fontweight="bold", color="darkgreen")
+
+                for route, color in [(E5_WP_R1, "red"), (E5_WP_R2, "green")]:
+                    for i in range(len(route)):
+                        w1 = route[i]
+                        w2 = route[(i + 1) % len(route)]
+                        ax.plot([w1[0], w2[0]], [w1[1], w2[1]],
+                                "--", lw=0.8, alpha=0.3, color=color)
+
+                # ---- Start markers ------------------------------------- #
+                ax.scatter(ref_x[0], ref_y[0], c="blue", marker="o", s=80, zorder=5,
+                           label=f"R1 ref start")
+                ax.scatter(atk_x[0], atk_y[0], c="red", marker="o", s=80, zorder=5,
+                           label=f"R1 atk start")
+                if has_r2:
+                    ax.scatter(r2_x[0], r2_y[0], c="orange", marker="s", s=70, zorder=5,
+                               label=f"R2 atk start")
+
+                # ---- Attack / alert markers on trajectory -------------- #
+                if t_attack is not None:
+                    ia = np.searchsorted(t_common, t_attack)
+                    if ia < common_len:
+                        ax.scatter(atk_x[ia], atk_y[ia], c="purple", marker="X",
+                                   s=120, zorder=6, label="Attack activated")
+                if t_alert is not None:
+                    ib = np.searchsorted(t_common, t_alert)
+                    if ib < common_len:
+                        ax.scatter(atk_x[ib], atk_y[ib], c="darkred", marker="D",
+                                   s=120, zorder=6, label="CUSUM alert")
+                        if t_attack is not None:
+                            ia2 = np.searchsorted(t_common, t_attack)
+                            if ia2 < common_len:
+                                ax.annotate(
+                                    f"TTD:\n{t_alert - t_attack:.1f}s",
+                                    xy=((atk_x[ia2] + atk_x[ib]) / 2,
+                                        (atk_y[ia2] + atk_y[ib]) / 2),
+                                    fontsize=9, fontweight="bold", color="darkred",
+                                    ha="center", va="center",
+                                    bbox=dict(boxstyle="round",
+                                              facecolor="lightyellow",
+                                              edgecolor="darkred", alpha=0.85),
+                                )
+
+                ax.set_xlabel("World X (m)")
+                ax.set_ylabel("World Y (m)")
+                ax.set_title(
+                    f"{e6d.name} — Dual meaconing: both robots meaconed\n"
+                    f"R1(red) + R2(orange): both drift toward same fake target"
+                )
+                ax.legend(loc="best", fontsize=7.5)
+                ax.set_aspect("equal")
+                ax.grid(True, alpha=0.3)
+                out = PLOTS_DIR / f"e6_trajectories_{e6d.name}.png"
+                fig.tight_layout()
+                fig.savefig(out, bbox_inches="tight", dpi=150)
+                plt.close(fig)
+                print(f"Saved: {out}")
+
+                # ---- Summary ------------------------------------------ #
+                drift_r1_final = drift_r1[-1] if len(drift_r1) > 0 else 0.0
+                drift_r1_max = float(np.max(drift_r1))
+                print(f"  {e6d.name}:")
+                print(f"    R1 max drift:       {drift_r1_max:.3f} m")
+                print(f"    R1 final drift:     {drift_r1_final:.3f} m")
+                if drift_r2 is not None and len(drift_r2) > 0:
+                    print(f"    R2 max drift:       {float(np.max(drift_r2)):.3f} m")
+                    print(f"    R2 final drift:     {drift_r2[-1]:.3f} m")
+                if t_attack is not None and t_alert is not None:
+                    ttd = t_alert - t_attack
+                    print(f"    TTD:                {ttd:.2f} s")
+                    ia = np.searchsorted(t_common, t_attack)
+                    ib = np.searchsorted(t_common, t_alert)
+                    if ia < len(drift_r1) and ib < len(drift_r1):
+                        print(f"    R1 drift at attack:    {drift_r1[ia]:.3f} m")
+                        print(f"    R1 drift at detection: {drift_r1[ib]:.3f} m")
+                else:
+                    print("    Attack → alert: N/A")
+
+    elif e6_attack_dirs and e5_ref_dir is None:
+        print("\n[E6] No reference trajectory found — run e5_ref first, then e6")
+
+    # ================================================================== #
+    # 8. E5 vs E6 comparison (CUSUM overlay + TTD bar chart)             #
+    # ================================================================== #
+    e5_atk_name = None
+    e6_atk_name = None
+    for name in experiments:
+        if name.startswith("e5_") and "ref" not in name and e5_atk_name is None:
+            e5_atk_name = name
+        if name.startswith("e6_") and "ref" not in name and e6_atk_name is None:
+            e6_atk_name = name
+
+    if e5_atk_name and e6_atk_name:
+        print("\n" + "=" * 60)
+        print("E5 vs E6 — CUSUM COMPARISON")
+        print("=" * 60)
+
+        d5 = experiments[e5_atk_name]
+        d6 = experiments[e6_atk_name]
+        t5_atk = attack_start_time(d5)
+        t6_atk = attack_start_time(d6)
+        t5_alert = alert_time(d5)
+        t6_alert = alert_time(d6)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+        # ---- Left: CUSUM overlay (shifted to attack t=0) --------------- #
+        for data, color, label, t_atk in [
+            (d5, "blue", f"E5 (single meaconing)", t5_atk),
+            (d6, "red", f"E6 (dual meaconing)", t6_atk),
+        ]:
+            cusum = data.get("/system/cusum_value")
+            if cusum and len(cusum["time"]) > 0 and t_atk is not None:
+                t_shifted = cusum["time"] - t_atk
+                ax1.plot(t_shifted, cusum["value"], color=color, lw=1.2, label=label)
+
+        ax1.axvline(0, color="purple", ls=":", lw=2.0, label="Attack t=0")
+        ax1.axhline(TAU, color="gray", ls="--", lw=1.5, label=f"tau = {TAU}")
+        ax1.set_xlabel("Time since attack (s)")
+        ax1.set_ylabel("S_k (CUSUM)")
+        ax1.set_title("CUSUM: E5 vs E6 (shifted to attack onset)")
+        ax1.legend(loc="upper left", fontsize=9)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(-5, 60)
+
+        # ---- Right: TTD bar chart ------------------------------------ #
+        ttd5 = (t5_alert - t5_atk) if (t5_atk and t5_alert) else None
+        ttd6 = (t6_alert - t6_atk) if (t6_atk and t6_alert) else None
+
+        labels = []
+        ttd_vals = []
+        colors = []
+        if ttd5 is not None:
+            labels.append("E5\n(single)")
+            ttd_vals.append(ttd5)
+            colors.append("steelblue")
+        if ttd6 is not None:
+            labels.append("E6\n(dual)")
+            ttd_vals.append(ttd6)
+            colors.append("indianred")
+
+        if labels:
+            bars = ax2.bar(labels, ttd_vals, color=colors, edgecolor="black",
+                           linewidth=0.8, width=0.5)
+            for bar, val in zip(bars, ttd_vals):
+                ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
+                         f"{val:.2f}s", ha="center", va="bottom",
+                         fontsize=12, fontweight="bold")
+            ax2.set_ylabel("TTD (s)")
+            ax2.set_title("Time-to-Detection comparison")
+            ax2.grid(True, alpha=0.3, axis="y")
+            ax2.set_ylim(0, max(ttd_vals) * 1.3 if ttd_vals else 10)
+
+            # Speedup annotation
+            if ttd5 is not None and ttd6 is not None and ttd6 > 0:
+                speedup = ttd5 / ttd6
+                ax2.annotate(
+                    f"E6 is {speedup:.1f}x faster",
+                    xy=(0.5, 0.85), xycoords="axes fraction",
+                    fontsize=11, fontweight="bold", color="darkgreen", ha="center",
+                    bbox=dict(boxstyle="round", facecolor="lightyellow",
+                              edgecolor="darkgreen", alpha=0.9),
+                )
+        else:
+            ax2.text(0.5, 0.5, "No TTD data", transform=ax2.transAxes,
+                     ha="center", va="center", fontsize=14)
+
+        fig.suptitle("E5 (single meaconing) vs E6 (dual meaconing)", fontsize=14)
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        out = PLOTS_DIR / "e5_vs_e6_comparison.png"
+        fig.savefig(out, bbox_inches="tight", dpi=200)
+        plt.close(fig)
+        print(f"Saved: {out}")
+
+        if ttd5 is not None:
+            print(f"  E5 TTD: {ttd5:.2f} s")
+        if ttd6 is not None:
+            print(f"  E6 TTD: {ttd6:.2f} s")
+        if ttd5 is not None and ttd6 is not None and ttd6 > 0:
+            print(f"  Speedup: {ttd5 / ttd6:.1f}x faster with dual meaconing")
+
     print(f"\nPlots written to: {PLOTS_DIR}")
 
 

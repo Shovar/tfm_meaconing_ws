@@ -25,6 +25,9 @@
 #                          robot1 navigates via gnss_spoofed (drifts under attack)
 #                          robot2 navigates via gnss_clean (unaffected)
 #   e5_ref reference       same route, no meaconing (reference trajectory)
+#   e6  dual_meaconing     GNSS-based multi-waypoint route + both robots meaconed
+#                          robot1 and robot2 both navigate via gnss_spoofed
+#                          D_GNSS collapses faster → shorter TTD
 # =============================================================================
 
 set -eo pipefail
@@ -72,7 +75,7 @@ usage() {
 EXP=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        e0|e1|e2|e3|e4|e5|e5_ref)
+        e0|e1|e2|e3|e4|e5|e5_ref|e6)
             EXP="$1"
             ;;
         --duration)
@@ -109,13 +112,14 @@ case "${EXP}" in
     e4) NAME="wide_separation" ;;
     e5) NAME="waypoint_attack" ;;
     e5_ref) NAME="waypoint_reference" ;;
+    e6) NAME="dual_meaconing" ;;
 esac
 RUN_ID="${EXP}_${NAME}"
 
 # Per-experiment launch arguments (spawn positions, waypoint mode, etc.)
 case "${EXP}" in
     e4) EXP_LAUNCH_ARGS="x2:=5.0" ;;
-    e5|e5_ref) EXP_LAUNCH_ARGS="waypoint_mode:=true x2:=0.0 y2:=2.0" ;;
+    e5|e5_ref|e6) EXP_LAUNCH_ARGS="waypoint_mode:=true x2:=0.0 y2:=2.0" ;;
     *)  EXP_LAUNCH_ARGS="" ;;
 esac
 
@@ -137,6 +141,27 @@ for p in parts[:-1]:
         d[p] = {}
     d = d[p]
 d[parts[-1]] = ${value}
+with open('${PARAMS_SRC}', 'w') as f:
+    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+print(f'  [params] ${key} = ${value}')
+"
+}
+
+set_param_str() {
+    local key="$1"
+    local value="$2"
+    python3 -c "
+import yaml
+with open('${PARAMS_SRC}') as f:
+    data = yaml.safe_load(f)
+params = data['/**']['ros__parameters']
+parts = '${key}'.split('.')
+d = params
+for p in parts[:-1]:
+    if p not in d or not isinstance(d[p], dict):
+        d[p] = {}
+    d = d[p]
+d[parts[-1]] = '${value}'
 with open('${PARAMS_SRC}', 'w') as f:
     yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 print(f'  [params] ${key} = ${value}')
@@ -183,6 +208,15 @@ apply_params() {
             set_param robot2_waypoint_mode True
             set_param startup_delay 10.0
             ;;
+        e6)
+            set_param activation_delay 30.0
+            set_param drift_velocity 0.2
+            set_param robot2.x 0.0
+            set_param robot2.y 2.0
+            set_param robot2_waypoint_mode True
+            set_param_str r2_gnss_source spoofed
+            set_param startup_delay 10.0
+            ;;
     esac
 }
 
@@ -209,7 +243,6 @@ kill_everything() {
         "waypoint_follower_node" \
         "cusum_detector_node" \
         "gnss_sim_node" \
-        "gnss_viz_node" \
         "uwb_sim_node" \
         "meaconing_injector" \
         "parameter_bridge" \

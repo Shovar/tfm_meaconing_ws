@@ -191,7 +191,7 @@ class WaypointFollowerNode(Node):
         self.gnss_y = None
         self.yaw1 = None
 
-        self.r2_gnss_x = None    # robot2: /robot2/gnss_clean
+        self.r2_gnss_x = None    # robot2 GNSS (source depends on r2_gnss_source)
         self.r2_gnss_y = None
         self.yaw2 = None
 
@@ -200,8 +200,11 @@ class WaypointFollowerNode(Node):
         self.r2_linear = self.declare_parameter('robot2_linear_vel', 0.12).value
         self.r2_angular = self.declare_parameter('robot2_angular_vel', 0.25).value
 
-        # --- E5 mode ---
+        # --- E5/E6 mode ---
         self.r2_waypoint = self.declare_parameter('robot2_waypoint_mode', False).value
+        # 'clean' = robot2 uses gnss_clean (E5: only robot1 attacked)
+        # 'spoofed' = robot2 uses gnss_spoofed (E6: both robots attacked)
+        self.r2_gnss_source = self.declare_parameter('r2_gnss_source', 'clean').value
 
         # --- Subscribers ---
         self.create_subscription(PoseStamped, '/robot1/gnss_spoofed',
@@ -209,7 +212,11 @@ class WaypointFollowerNode(Node):
         self.create_subscription(Odometry, '/robot1/odom',
                                  self._cb_odom_r1, 10)
         if self.r2_waypoint:
-            self.create_subscription(PoseStamped, '/robot2/gnss_clean',
+            r2_topic = ('/robot2/gnss_spoofed' if self.r2_gnss_source == 'spoofed'
+                        else '/robot2/gnss_clean')
+            self.get_logger().info(
+                f'Robot2 navigates via {r2_topic} (r2_gnss_source={self.r2_gnss_source})')
+            self.create_subscription(PoseStamped, r2_topic,
                                      self._cb_gnss_r2, 10)
             self.create_subscription(Odometry, '/robot2/odom',
                                      self._cb_odom_r2, 10)

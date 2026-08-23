@@ -68,4 +68,5 @@
     linear_speed: 0.2                # Velocidad lineal deseada (m/s)
     lookahead: 0.8                   # Distancia de lookahead pure pursuit (m)
     publish_robot2: false            # Si true, robot2 en bucle abierto (legacy)
-    robot2_waypoint_mode: false      # E5: robot2 navega con GNSS limpio (gnss_clean), robot1 con GNSS meaconed
+    robot2_waypoint_mode: false      # E5/E6: robot2 navega con GNSS (fuente según r2_gnss_source)
+    r2_gnss_source: 'clean'            # 'clean' = E5 (robot2 usa gnss_clean), 'spoofed' = E6 (robot2 usa gnss_spoofed)
