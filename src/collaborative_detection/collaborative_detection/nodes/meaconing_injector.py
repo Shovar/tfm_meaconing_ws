@@ -3,8 +3,9 @@
 Meaconing Injector Node
 
 Subscribes to /robot1/gnss_clean and /robot2/gnss_clean, and when activated,
-publishes spoofed GNSS positions where both robots are gradually dragged
-toward a common fake target (single-antenna 'drag-off' meaconing attack).
+publishes GNSS positions where both robots are gradually dragged
+toward a common fake target (single-antenna meaconing attack — legitimate
+signal is received, artificially delayed, and retransmitted).
 
 Activation is controlled via a ROS 2 service: /meaconing/set_active (std_srvs/SetBool).
 """
@@ -185,7 +186,7 @@ class MeaconingInjector(Node):
         if self.attack_type == 'single_antenna':
             self._attack_single_antenna(now, now_msg)
         elif self.attack_type == 'pattern':
-            # TODO: implement pattern-based spoofing (opcional futuro — plan §5.4)
+            # TODO: pattern-based meaconing
             self._attack_single_antenna(now, now_msg)
 
     def _attack_single_antenna(self, now, now_msg):

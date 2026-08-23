@@ -14,21 +14,28 @@
     sigma_uwb: 0.24     # Desviación estándar del ruido UWB (m) - Fishberg et al. 2024 MURP
 
     # --- Parámetros del detector CUSUM ---
-    # δ = D_UWB - D_GNSS (signado). Bajo H₀ δ ~ N(0, σ_δ) con σ_δ ≈ sqrt(σ_uwb² + 2·σ_gnss²) ≈ 1.4 m,
-    # comparable a la señal del ataque (~1.2 m). Por eso el CUSUM se alimenta de δ FILTRADO
-    # (media móvil de `filter_window` muestras ≈ 1 s) → σ_δ cae a ~0.26 m (~5.5× menos).
-    # Con τ=3.0 (~11σ del ruido filtrado) el baseline (E0, sin ataque) no produce falsas alarmas,
-    # y bajo ataque S_k cruza τ en ~0.6 s.
+    # CUSUM de dos colas (S_plus + S_minus con δ signado):
+    #   δ = D_UWB - D_GNSS (signado)
+    #   S⁺_k = max(0, S⁺_{k-1} +  δ̄ - β)  → detecta colapso de D_GNSS (meaconing)
+    #   S⁻_k = max(0, S⁻_{k-1} -  δ̄ - β)  → detecta inflado de D_GNSS (pattern attack)
+    #   Alarma si S⁺_k > τ o S⁻_k > τ durante alert_confirm_time.
+    #
+    # Calibración: durante startup_delay se estima la mediana de δ_raw en
+    # condiciones normales y se resta antes del CUSUM. Esto compensa el sesgo
+    # de la norma Euclídea GNSS (el ruido de posición de media cero no produce
+    # una distancia de media cero).
+    #   Bajo H₀: E[δ_corregida] ≈ 0 → E[δ̄ - β] ≈ -β.
+    #   Bajo ataque: δ̄ corregida es positiva → S⁺ crece.
     beta: 0.5           # Deriva permitida por paso (m) — referencia CUSUM
     tau: 3.0            # Umbral de detección
     filter_window: 30   # Muestras de la media móvil sobre δ (30 ≈ 1 s @ 30 Hz)
     alert_confirm_time: 2.0  # Segundos que S_k debe permanecer sobre τ antes de dar la alarma
-    startup_delay: 10.0  # Segundos de warmup (desde el primer dato) antes de acumular CUSUM
+    startup_delay: 10.0  # Warmup/calibración sin acumular CUSUM (s)
 
     # --- Parámetros del atacante ---
     drift_velocity: 0.2     # Velocidad de arrastre (drag-off) hacia el punto falso (m/s)
     activation_delay: 30.0  # Tiempo hasta activación del ataque (s)
-    attack_type: single_antenna  # Tipo de ataque: 'single_antenna' (implementado), 'pattern' (opcional futuro)
+    attack_type: single_antenna  # Tipo de ataque: 'single_antenna' (meaconing: señal retardada y retransmitida)
 
     # --- Semilla para reproducibilidad ---
     random_seed: 42     # Semilla fija para numpy (reproducibilidad determinista)
@@ -51,10 +58,14 @@
     robot2_angular_vel: 0.25  # Velocidad angular robot 2 (rad/s)
 
     # --- Waypoint follower (E5) ---
-    waypoint_x: 5.0           # Coordenada X del waypoint (m)
-    waypoint_y: 0.0           # Coordenada Y del waypoint (m)
-    linear_speed: 0.2         # Velocidad lineal máxima hacia el waypoint (m/s)
-    linear_gain: 0.3          # Ganancia proporcional de velocidad lineal (m/s por m de error)
-    angular_gain: 1.0         # Ganancia proporcional del control de rumbo (rad/s por rad de error)
-    publish_robot2: false      # Si true, el nodo publica también cmd_vel de robot2 (modo E5 legacy)
-    robot2_waypoint_mode: false  # Si true, robot2 sigue el waypoint usando odometría (no GNSS)
+    # Robot1 route (robot1 follows this via gnss_spoofed → drifts under attack)
+    waypoints1_x: [5.0, 5.0, 0.0]   # Coordenadas X de la ruta robot1
+    waypoints1_y: [0.0, 5.0, 5.0]   # Coordenadas Y de la ruta robot1
+    # Robot2 route (offset +2 m in Y so D_UWB stays ≈ 2 m)
+    waypoints2_x: [5.0, 5.0, 0.0]   # Coordenadas X de la ruta robot2
+    waypoints2_y: [2.0, 7.0, 7.0]   # Coordenadas Y de la ruta robot2
+    waypoint_arrival_dist: 0.5       # Distancia de llegada para avanzar al siguiente waypoint (m)
+    linear_speed: 0.2                # Velocidad lineal deseada (m/s)
+    lookahead: 0.8                   # Distancia de lookahead pure pursuit (m)
+    publish_robot2: false            # Si true, robot2 en bucle abierto (legacy)
+    robot2_waypoint_mode: false      # E5: robot2 navega con GNSS limpio (gnss_clean), robot1 con GNSS meaconed

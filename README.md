@@ -15,7 +15,7 @@ The detection strategy is based on a simple insight:
 
 | Source | Measurement | Vulnerable to meaconing? |
 |---|---|---|
-| GNSS positions | $D_{GNSS} = \|\vec{p}_A - \vec{p}_B\|$ | ✅ Yes — both spoofed to same point → $D_{GNSS} \approx 0$ |
+| GNSS positions | $D_{GNSS} = \|\vec{p}_A - \vec{p}_B\|$ | ✅ Yes — both meaconed to same point → $D_{GNSS} \approx 0$ |
 | UWB ranging | $D_{UWB}$ (physical radio distance) | ❌ No — measures true Euclidean distance |
 
 Under normal operation $D_{GNSS} \approx D_{UWB}$ (within sensor noise). Under a meaconing attack, $D_{GNSS}$ collapses to near-zero while $D_{UWB}$ remains at the true physical distance, creating a **persistent positive bias** in $\delta = D_{UWB} - D_{GNSS}$.
@@ -40,7 +40,7 @@ The CUSUM is superior to a fixed threshold because it **accumulates evidence ove
   <img src="docs/images/e5_experiment.gif" alt="E5 Experiment — Waypoint follower under meaconing attack" width="90%"/>
 </p>
 
-**Experiment 5 — Waypoint-follower under meaconing attack.** Robot1 (red trajectory) navigates toward a waypoint using GNSS-spoofed position; robot2 (green) uses clean odometry. When the attack activates (purple line), robot1's controller steers it off course while the CUSUM detector accumulates evidence. Three synchronized panels: (1) CUSUM S_k + innovation δ, (2) physical drift ‖p(t) − p_ref(t)‖, (3) top-down robot trajectories.
+**Experiment 5 — Waypoint-follower under meaconing attack.** Robot1 (red trajectory) navigates toward a waypoint using GNSS-meaconed position; robot2 (green) uses clean odometry. When the attack activates (purple line), robot1's controller steers it off course while the CUSUM detector accumulates evidence. Three synchronized panels: (1) CUSUM S_k + innovation δ, (2) physical drift ‖p(t) − p_ref(t)‖, (3) top-down robot trajectories.
 
 ---
 
@@ -78,10 +78,10 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │       └── nodes/
 │           ├── gnss_sim_node.py           # GNSS simulator (odometry → noisy GNSS)
 │           ├── uwb_sim_node.py            # UWB ranging simulator (odometry → distance)
-│           ├── meaconing_injector.py      # Attack injector (spoofs GNSS positions)
+│           ├── meaconing_injector.py      # Attack injector (meacons GNSS positions (signal retard + rebroadcast))
 │           ├── cusum_detector_node.py     # CUSUM sequential detector
 │           ├── robot_mover_node.py        # Autonomous circular motion controller
-│           ├── waypoint_follower_node.py  # E5: GNSS-spoofed waypoint navigation
+│           ├── waypoint_follower_node.py  # E5: GNSS-meaconed waypoint navigation
 │           └── gnss_viz_node.py           # RViz2 Marker visualizer
 │
 ├── build/                                # Colcon build artifacts (auto-generated)
@@ -123,7 +123,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │ Meaconing    │  ── gnss_spoofed ──┐    │   Attack layer
 │ Injector     │                    │    │
 │ (passthrough │                    │    │
-│  or spoof)   │                    │    │
+│  or meacon)   │                    │    │
 └──────────────┘                    │    │
                                     ▼    ▼
                             ┌──────────────────┐
@@ -150,11 +150,14 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 |---|---|---|
 | `/robot1/gnss_clean` | `PoseStamped` | Simulated GNSS position (world frame, with noise) |
 | `/robot2/gnss_clean` | `PoseStamped` | Simulated GNSS position (world frame, with noise) |
-| `/robot1/gnss_spoofed` | `PoseStamped` | GNSS position after meaconing injector (clean or spoofed) |
-| `/robot2/gnss_spoofed` | `PoseStamped` | GNSS position after meaconing injector (clean or spoofed) |
+| `/robot1/gnss_spoofed` | `PoseStamped` | GNSS position after meaconing injector (clean or meaconed) |
+| `/robot2/gnss_spoofed` | `PoseStamped` | GNSS position after meaconing injector (clean or meaconed) |
 | `/robots/uwb_distance` | `Float64` | Simulated UWB range between robots (m) |
-| `/system/cusum_value` | `Float64` | Current CUSUM statistic $S_k$ |
-| `/system/delta_value` | `Float64` | Current innovation $\delta_k = D_{UWB} - D_{GNSS}$ |
+| `/system/cusum_value` | `Float64` | Current CUSUM statistic (max of both tails) |
+| `/system/cusum_plus` | `Float64` | Positive-tail accumulator $S^+_k$ (D_GNSS collapse) |
+| `/system/cusum_minus` | `Float64` | Negative-tail accumulator $S^-_k$ (D_GNSS inflation) |
+| `/system/delta_value` | `Float64` | Baseline-corrected, filtered innovation used by CUSUM |
+| `/system/delta_raw` | `Float64` | Raw innovation before startup baseline correction |
 | `/system/meaconing_alert` | `Bool` | Detection alarm (`true` = meaconing detected) |
 | `/meaconing/active` | `Bool` | Attack active status |
 | `/robot1/cmd_vel` | `TwistStamped` | Velocity command for robot 1 |
@@ -319,7 +322,7 @@ The script `scripts/run_experiment.sh` runs **one experiment at a time** (run th
 | **E2 — Fast drift** | `run_experiment.sh e2` | `drift_velocity: 0.5` | Obvious attack, measures minimum TTD |
 | **E3 — Hot start** | `run_experiment.sh e3` | `activation_delay: 0.0` | Attack active from the beginning |
 | **E4 — Wide separation** | `run_experiment.sh e4` | `x2: 5.0` | Robots 5 m apart — tests distance effect on TTD |
-| **E5 — Waypoint attack** | `run_experiment.sh e5` | `waypoint_mode: true` | Robot1 navigates via GNSS-spoofed position — measures **physical drift** before detection |
+| **E5 — Waypoint attack** | `run_experiment.sh e5` | `waypoint_mode: true` | Robot1 navigates via GNSS-meaconed position — measures **physical drift** before detection |
 
 ### Running an experiment
 
@@ -366,14 +369,14 @@ All parameters live in `config/params.yaml` under the `/**` wildcard node.
 |---|---|---|
 | `sigma_gnss` | `1.0` | GNSS noise standard deviation (m) |
 | `sigma_uwb` | `0.24` | UWB noise standard deviation (m) |
-| `beta` | `0.5` | CUSUM drift parameter (minimum detectable bias, m) |
+| `beta` | `0.5` | CUSUM drift parameter after startup baseline correction |
 | `tau` | `3.0` | CUSUM detection threshold |
 | `filter_window` | `30` | Moving-average window over $\delta$ (samples, 30 ≈ 1 s @ 30 Hz) |
 | `alert_confirm_time` | `2.0` | Time $S_k$ must stay above $\tau$ before the alarm fires (s) |
 | `startup_delay` | `10.0` | CUSUM warmup period from the first data sample (s) |
 | `drift_velocity` | `0.2` | Fake position drift speed during attack (m/s) |
 | `activation_delay` | `30.0` | Auto-activation delay for the attack (s) |
-| `attack_type` | `single_antenna` | Attack mode: `single_antenna` (implemented) or `pattern` (future) |
+| `attack_type` | `single_antenna` | Attack mode: `single_antenna` (meaconing — signal retard + rebroadcast) |
 | `random_seed` | `42` | Fixed seed for NumPy reproducibility |
 | `update_rate` | `30.0` | Sensor/CUSUM update frequency (Hz) |
 | `robot1.x` / `robot1.y` | `0.0` / `0.0` | Robot 1 world spawn position (m) |
@@ -393,17 +396,29 @@ All parameters live in `config/params.yaml` under the `/**` wildcard node.
 
 ## CUSUM Detector Calibration
 
-The CUSUM detector is **conservatively calibrated** to avoid false positives:
+The CUSUM detector uses a **two-tailed** approach with a baseline-corrected signed innovation. During the attack-free `startup_delay`, it estimates the median operating-point value $\delta_0$ and then uses $\delta = (D_{UWB} - D_{GNSS}) - \delta_0$, maintaining two independent accumulators:
 
-- **β = 0.5**: Each innovation δ must exceed 0.5 m to contribute positively. Under H₀, $\delta \sim \mathcal{N}(0, \sigma_\delta^2)$ with $\sigma_\delta \approx 1.03$ m (from $\sigma_{GNSS}=1.0$, $\sigma_{UWB}=0.24$). Since $\mathbb{E}[\delta - \beta] = -0.5$, $S_k$ tends to **stay at zero**.
+- **$S^+_k$** monitors $\delta > 0$ (D_GNSS collapses — single-antenna meaconing)
+- **$S^-_k$** monitors $\delta < 0$ (D_GNSS inflates — pattern-based attack)
 
-- **τ = 3.0**: Three consecutive positive spikes of ~1.5 m are needed to cross the threshold — probability < 0.03% under H₀.
+Alarm fires if **either** accumulator exceeds $\tau = 3.0$ for the confirmation window (2.0 s).
 
-- **Confirmation window (`alert_confirm_time` = 2.0 s)**: once $S_k$ crosses $\tau$ it must remain above for 2 s before the alarm fires. Short-lived transients (a startup or orbital-phase spike) are rejected, while the sustained attack signal keeps $S_k$ above $\tau$, so the alarm fires ~2 s after the first crossing.
+### Why two-tailed instead of absolute value
 
-Under H₁ (attack), $D_{GNSS} \approx 0$ and $D_{UWB} \approx 3$ m → $\delta \approx 3$ m → $S_k$ grows ~2.5 m/step → crosses $\tau$ in ~2 steps (~67 ms at 30 Hz).
+- The GNSS range is a Euclidean norm, so zero-mean position noise creates a non-zero range bias. Estimating $\delta_0$ during startup removes that normal operating-point bias before accumulation.
+- With corrected signed $\delta$: $\mathbb{E}[\delta] \approx 0$ under H₀. $\beta = 0.5$ then gives negative drift, so $S^+_k$ and $S^-_k$ stay at zero during normal operation.
+- With $|\delta|$: $\mathbb{E}[|\delta|] \approx 1.14$ m under H₀ (folded normal) → a bias that the CUSUM would accumulate. To compensate, $\beta$ would need to be > 1.14, wasting sensitivity.
+- Two-tailed is the standard approach in statistical process control for detecting deviations in either direction without a noise-floor penalty.
 
-**Experiment E0 empirically validates** that $S_k = 0$ for the full 90 s without attack.
+### Parameters
+
+- **$\beta = 0.5$**: Under H₀, $\mathbb{E}[\delta - \beta] = -0.5$ → negative drift keeps both accumulators at zero.
+- **$\tau = 3.0$**: Three consecutive positive contributions of ~1.5 m are needed to cross the threshold.
+- **Confirmation window (2.0 s)**: rejects transient noise spikes.
+
+Under H₁ (meaconing): $D_{GNSS} \approx 0$, $D_{UWB} \approx 2$ m → $\delta \approx 2$ m → $S^+_k$ grows ~1.5 m/step → crosses $\tau$ in ~2 steps (~67 ms).
+
+**Experiment E0 empirically validates** that both accumulators stay at zero for the full 90 s without attack. The raw innovation remains available on `/system/delta_raw`; `/system/delta_value` is the baseline-corrected, filtered innovation used by the CUSUM.
 
 ---
 
@@ -414,7 +429,7 @@ Under H₁ (attack), $D_{GNSS} \approx 0$ and $D_{UWB} \approx 3$ m → $\delta 
 The `gnss_viz_node` publishes Marker spheres:
 
 - 🔵 **Blue spheres** — clean GNSS positions (true robot locations)
-- 🔴 **Red spheres** — spoofed GNSS positions (both converge to the same drifting point during attack)
+- 🔴 **Red spheres** — meaconed GNSS positions (both converge to the same drifting point during attack)
 
 To view them, open **RViz2** and add a `Marker` display subscribed to `/visualization/gnss_spoofed_robot1`.
 
@@ -489,7 +504,7 @@ Example plots generated with `plot_results.py` from a full E0–E5 run.
 
 - **Per-robot Gazebo topics**: Each robot's SDF is dynamically patched at launch time to use model-specific transport topics (`/model/robot1/odom`, `/model/robot2/odom`, etc.), preventing the two bridges from receiving identical data from the shared global topics Gazebo uses by default.
 
-- **Signed CUSUM innovation**: Using $\delta = D_{UWB} - D_{GNSS}$ (not absolute value) allows noise to cancel under H₀ — positive and negative noise samples average to zero — while the attack signal contributes a consistent positive bias.
+- **Baseline-corrected signed CUSUM innovation**: The detector estimates the normal median of $D_{UWB} - D_{GNSS}$ during `startup_delay`, subtracts it, and feeds the corrected signed value to the two CUSUM tails. This prevents the Euclidean GNSS range bias from producing a false negative-tail alarm before activation, while preserving the positive meaconing signal.
 
 - **Deterministic reproducibility**: A fixed `random_seed: 42` ensures identical noise sequences across runs, making experiments comparable.
 

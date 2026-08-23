@@ -4,27 +4,21 @@ Make synchronized experiment video from rosbag data.
 
 Generates an MP4 with three synchronized panels:
   1. CUSUM S_k + delta (innovation) with a moving time cursor
-  2. Physical drift ‖p_real(t) − p_ref(t)‖ with attack/alert markers
-  3. Top-down robot trajectories (robot1 ref + attack, robot2 attack)
+  2. Physical drift ‖p_real(t) − p_ref(t)‖ with attack/alert markers + TTD
+  3. Top-down robot trajectories with multi-waypoint route markers
 
 Usage:
     cd ~/tfm_meaconing_ws
     /path/to/jazzy/python3 \
         src/collaborative_detection/analysis/make_video.py e5_waypoint_attack
 
-    # With custom speedup and duration
-    /path/to/jazzy/python3 \
-        src/collaborative_detection/analysis/make_video.py e5_waypoint_attack --speedup 4 --max-time 60
-
 Output:
     ~/tfm_meaconing_ws/results/videos/e5_experiment.mp4
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
-from collections import defaultdict
 
 import numpy as np
 import matplotlib
@@ -41,6 +35,10 @@ from rosidl_runtime_py.utilities import get_message
 RESULTS_DIR = Path.home() / "tfm_meaconing_ws" / "results"
 VIDEOS_DIR = RESULTS_DIR / "videos"
 TAU = 3.0
+
+# Multi-waypoint routes — must match params.yaml
+WP_R1 = [(5.0, 0.0), (5.0, 5.0), (0.0, 5.0)]   # robot1 (gnss_spoofed)
+WP_R2 = [(5.0, 2.0), (5.0, 7.0), (0.0, 7.0)]   # robot2 (gnss_clean, offset +2m Y)
 
 # --------------------------------------------------------------------------- #
 #  Data loading                                                               #
@@ -123,15 +121,12 @@ def _load_scalar(bag_path, topic):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate E5 experiment video")
-    parser.add_argument("experiment", help="Experiment folder name, e.g. e5_waypoint_attack")
-    parser.add_argument("--speedup", type=float, default=2.0,
-                        help="Playback speed multiplier (default: 2)")
-    parser.add_argument("--max-time", type=float, default=None,
-                        help="Stop video after this many seconds of sim time")
-    parser.add_argument("--fps", type=int, default=30,
-                        help="Output video frames per second (default: 30)")
-    parser.add_argument("--dpi", type=int, default=150,
-                        help="Output resolution DPI (default: 150)")
+    parser.add_argument("experiment",
+                        help="Experiment folder name, e.g. e5_waypoint_attack")
+    parser.add_argument("--speedup", type=float, default=2.0)
+    parser.add_argument("--max-time", type=float, default=None)
+    parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--dpi", type=int, default=150)
     args = parser.parse_args()
 
     # --- Locate rosbags --------------------------------------------------- #
@@ -140,20 +135,18 @@ def main():
 
     if not atk_dir.is_dir():
         print(f"Attack bag not found: {atk_dir}", file=sys.stderr)
-        print("Available experiments:", file=sys.stderr)
         for d in sorted(RESULTS_DIR.glob("*")):
             if d.is_dir():
                 print(f"  {d.name}", file=sys.stderr)
         sys.exit(1)
     if not ref_dir.is_dir():
         print(f"Reference bag not found: {ref_dir}", file=sys.stderr)
-        print("Run e5_ref first.", file=sys.stderr)
         sys.exit(1)
 
     print(f"Attack bag:    {atk_dir}")
     print(f"Reference bag: {ref_dir}")
 
-    # --- Load attack data ------------------------------------------------- #
+    # --- Load data -------------------------------------------------------- #
     print("Loading attack data ...")
     cusum   = _load_scalar(atk_dir, "/system/cusum_value")
     delta_f = _load_scalar(atk_dir, "/system/delta_value")
@@ -162,16 +155,14 @@ def main():
     odom_r1 = _load_odom_trajectory(atk_dir, "/robot1/odom")
     odom_r2 = _load_odom_trajectory(atk_dir, "/robot2/odom")
 
-    # --- Load reference data ---------------------------------------------- #
     print("Loading reference data ...")
     ref_odom_r1 = _load_odom_trajectory(ref_dir, "/robot1/odom")
 
-    # --- Sanity checks ---------------------------------------------------- #
     if cusum is None or delta_f is None:
-        print("CUSUM/delta data missing — check the rosbag", file=sys.stderr)
+        print("CUSUM/delta data missing", file=sys.stderr)
         sys.exit(1)
     if odom_r1 is None or ref_odom_r1 is None:
-        print("Odometry data missing — check the rosbag", file=sys.stderr)
+        print("Odometry data missing", file=sys.stderr)
         sys.exit(1)
 
     # --- Time window ------------------------------------------------------ #
@@ -180,48 +171,47 @@ def main():
         t_end = min(t_end, args.max_time)
 
     print(f"Simulation time: 0 → {t_end:.1f} s")
-    print(f"Video duration:  {t_end / args.speedup:.1f} s  (speedup ×{args.speedup})")
-    print(f"Output FPS:       {args.fps}")
+    print(f"Video duration:  {t_end / args.speedup:.1f} s  (×{args.speedup})")
 
-    # --- Resample everything to a uniform time grid ----------------------- #
+    # --- Uniform time grid ------------------------------------------------ #
     n_frames = int(t_end * args.fps / args.speedup)
-    # Each output frame advances sim-time by  speedup / fps  seconds
     dt_frame = args.speedup / args.fps
-    t_video = np.arange(n_frames) * dt_frame   # sim-time of each video frame
+    t_video = np.arange(n_frames) * dt_frame
 
     def _interp(series, t_target):
-        """Linearly interpolate a {time, value} series onto t_target."""
         if series is None or len(series["time"]) == 0:
             return np.full_like(t_target, np.nan)
         return np.interp(t_target, series["time"], series["value"],
                          left=np.nan, right=np.nan)
 
-    s_k     = _interp(cusum, t_video)
-    d_f     = _interp(delta_f, t_video)
-    alert_v = _interp(alert, t_video)
+    s_k      = _interp(cusum, t_video)
+    d_f      = _interp(delta_f, t_video)
+    alert_v  = _interp(alert, t_video)
     active_v = _interp(active, t_video)
 
-    # Odometry interpolation
-    r1_x = np.interp(t_video, odom_r1["time"], odom_r1["x"], left=np.nan, right=np.nan)
-    r1_y = np.interp(t_video, odom_r1["time"], odom_r1["y"], left=np.nan, right=np.nan)
+    r1_x = np.interp(t_video, odom_r1["time"], odom_r1["x"],
+                     left=np.nan, right=np.nan)
+    r1_y = np.interp(t_video, odom_r1["time"], odom_r1["y"],
+                     left=np.nan, right=np.nan)
 
-    # Robot2 — add spawn offset (0, 2) to convert odom → world
+    # Robot2 odom → world: add spawn offset (0, 2).  odometry is in
+    # the robot-local frame (starts at 0,0); +2.0 Y converts to world.
     if odom_r2 is not None:
-        r2_x = np.interp(t_video, odom_r2["time"], odom_r2["x"], left=np.nan, right=np.nan) + 0.0
-        r2_y = np.interp(t_video, odom_r2["time"], odom_r2["y"], left=np.nan, right=np.nan) + 2.0
+        r2_x = np.interp(t_video, odom_r2["time"], odom_r2["x"],
+                         left=np.nan, right=np.nan)
+        r2_y = np.interp(t_video, odom_r2["time"], odom_r2["y"],
+                         left=np.nan, right=np.nan) + 2.0
         has_r2 = True
     else:
         r2_x = np.full_like(t_video, np.nan)
         r2_y = np.full_like(t_video, np.nan)
         has_r2 = False
 
-    # Reference robot1 trajectory — interpolated onto same time grid
     ref_x = np.interp(t_video, ref_odom_r1["time"], ref_odom_r1["x"],
                       left=np.nan, right=np.nan)
     ref_y = np.interp(t_video, ref_odom_r1["time"], ref_odom_r1["y"],
                       left=np.nan, right=np.nan)
 
-    # Physical drift
     drift = np.sqrt((r1_x - ref_x) ** 2 + (r1_y - ref_y) ** 2)
 
     # Attack / alert times
@@ -237,106 +227,134 @@ def main():
         if len(idx) > 0:
             t_alert = float(alert["time"][idx[0]])
 
+    ttd = (t_alert - t_attack) if (t_attack and t_alert) else None
+
     print(f"Attack time:  {t_attack:.1f}s" if t_attack else "Attack time:  never")
     print(f"Alert time:   {t_alert:.1f}s" if t_alert else "Alert time:   never")
+    print(f"TTD:          {ttd:.2f}s" if ttd else "TTD:          N/A")
 
     # ---------------------------------------------------------------------- #
     #  Figure setup                                                          #
     # ---------------------------------------------------------------------- #
-    # 2-column layout:
-    #   left  (wide):  CUSUM + delta
-    #   right (top):   Physical drift
-    #   right (bottom): Trajectories
     fig = plt.figure(figsize=(20, 10), dpi=args.dpi)
     gs = GridSpec(2, 2, figure=fig,
                   width_ratios=[1.2, 1.0],
                   height_ratios=[1, 1],
                   hspace=0.35, wspace=0.30)
 
-    ax_cusum = fig.add_subplot(gs[:, 0])      # left column, full height
-    ax_drift = fig.add_subplot(gs[0, 1])       # right top
-    ax_traj  = fig.add_subplot(gs[1, 1])       # right bottom
+    ax_cusum = fig.add_subplot(gs[:, 0])
+    ax_drift = fig.add_subplot(gs[0, 1])
+    ax_traj  = fig.add_subplot(gs[1, 1])
 
     # --- Left panel: CUSUM + delta --------------------------------------- #
     ax_cusum.set_title("CUSUM detector", fontsize=13, fontweight="bold")
     ax_cusum.set_xlabel("Time (s)")
-    ax_cusum.set_ylabel("S_k / δ (m)", color="black")
+    ax_cusum.set_ylabel(r"$S_k$ / $\delta$ (m)", color="black")
     ax_cusum.set_xlim(0, t_end)
     ax_cusum.set_ylim(-1, max(TAU * 2, np.nanmax(s_k) * 1.1 + 0.5))
     ax_cusum.axhline(TAU, color="red", ls="--", lw=1.5, label=f"τ = {TAU}")
     ax_cusum.grid(True, alpha=0.3)
-
-    # Static: full CUSUM trace (faint)
     ax_cusum.plot(t_video, s_k, color="steelblue", lw=0.6, alpha=0.4)
     ax_cusum.plot(t_video, d_f, color="green", lw=0.4, alpha=0.3)
-
-    # Attack / alert vertical lines
     if t_attack is not None:
         ax_cusum.axvline(t_attack, color="purple", ls=":", lw=1.5, alpha=0.6)
     if t_alert is not None:
         ax_cusum.axvline(t_alert, color="red", ls="--", lw=1.5, alpha=0.6)
 
-    # Animated elements (drawn fresh each frame)
-    cusum_line, = ax_cusum.plot([], [], "b-", lw=1.8, label="S_k (CUSUM)")
-    delta_line, = ax_cusum.plot([], [], "g-", lw=0.8, alpha=0.7, label="δ (innovation)")
+    cusum_line, = ax_cusum.plot([], [], "b-", lw=1.8, label=r"$S_k$ (CUSUM)")
+    delta_line, = ax_cusum.plot([], [], "g-", lw=0.8, alpha=0.7,
+                                label=r"$\delta$ (innovation)")
     cursor_line = ax_cusum.axvline(0, color="orange", lw=2.0, alpha=0.8)
     time_text = ax_cusum.text(0.02, 0.96, "", transform=ax_cusum.transAxes,
                               fontsize=10, va="top", fontfamily="monospace",
-                              bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8))
+                              bbox=dict(boxstyle="round", facecolor="wheat",
+                                        alpha=0.8))
     ax_cusum.legend(loc="upper right", fontsize=8)
 
     # --- Right-top: Physical drift --------------------------------------- #
-    ax_drift.set_title("Physical drift ‖p(t) − p_ref(t)‖", fontsize=13, fontweight="bold")
+    ax_drift.set_title(r"Physical drift $\|\mathbf{p}(t) - \mathbf{p}_{ref}(t)\|$",
+                       fontsize=13, fontweight="bold")
     ax_drift.set_xlabel("Time (s)")
     ax_drift.set_ylabel("Drift (m)")
     ax_drift.set_xlim(0, t_end)
     drift_max = max(np.nanmax(drift) * 1.1, 0.5)
     ax_drift.set_ylim(-0.05 * drift_max, drift_max)
     ax_drift.grid(True, alpha=0.3)
-
-    # Static: full drift trace (faint)
     ax_drift.plot(t_video, drift, color="darkblue", lw=0.6, alpha=0.3)
     if t_attack is not None:
-        ax_drift.axvline(t_attack, color="purple", ls=":", lw=1.5, alpha=0.6)
+        ax_drift.axvline(t_attack, color="purple", ls=":", lw=1.5, alpha=0.6,
+                         label="Attack activated")
     if t_alert is not None:
-        ax_drift.axvline(t_alert, color="red", ls="--", lw=1.5, alpha=0.6)
+        ax_drift.axvline(t_alert, color="red", ls="--", lw=1.5, alpha=0.6,
+                         label="CUSUM alert")
+    ax_drift.legend(loc="lower right", fontsize=7.5)
 
     drift_line, = ax_drift.plot([], [], "b-", lw=1.5)
     drift_cursor = ax_drift.axvline(0, color="orange", lw=2.0, alpha=0.8)
-    drift_val_text = ax_drift.text(0.98, 0.92, "", transform=ax_drift.transAxes,
+    drift_info = []
+    drift_info.append("")
+    if ttd is not None:
+        drift_info.append(f"TTD = {ttd:.2f} s")
+    drift_val_text = ax_drift.text(0.98, 0.92, "\n".join(drift_info),
+                                   transform=ax_drift.transAxes,
                                    fontsize=11, ha="right", va="top",
                                    fontfamily="monospace", fontweight="bold",
-                                   bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+                                   bbox=dict(boxstyle="round", facecolor="white",
+                                             alpha=0.8))
 
-    # --- Right-bottom: Trajectories (top-down) --------------------------- #
+    # --- Right-bottom: Trajectories -------------------------------------- #
     ax_traj.set_title("Robot trajectories (top-down)", fontsize=13, fontweight="bold")
     ax_traj.set_xlabel("World X (m)")
     ax_traj.set_ylabel("World Y (m)")
     ax_traj.set_aspect("equal")
     ax_traj.grid(True, alpha=0.3)
 
-    # Determine plot bounds from all trajectories
     all_x = np.concatenate([r1_x[~np.isnan(r1_x)], ref_x[~np.isnan(ref_x)]])
     all_y = np.concatenate([r1_y[~np.isnan(r1_y)], ref_y[~np.isnan(ref_y)]])
     if has_r2:
         all_x = np.concatenate([all_x, r2_x[~np.isnan(r2_x)]])
         all_y = np.concatenate([all_y, r2_y[~np.isnan(r2_y)]])
 
+    # Include both routes' waypoints in bounds
+    all_wp = WP_R1 + WP_R2
+    wp_xs = [w[0] for w in all_wp]
+    wp_ys = [w[1] for w in all_wp]
+    all_x = np.concatenate([all_x, wp_xs])
+    all_y = np.concatenate([all_y, wp_ys])
+
     x_margin = max((np.nanmax(all_x) - np.nanmin(all_x)) * 0.15, 1.0)
     y_margin = max((np.nanmax(all_y) - np.nanmin(all_y)) * 0.15, 1.0)
     ax_traj.set_xlim(np.nanmin(all_x) - x_margin, np.nanmax(all_x) + x_margin)
     ax_traj.set_ylim(np.nanmin(all_y) - y_margin, np.nanmax(all_y) + y_margin)
 
-    # Static full trajectories (faint)
-    ax_traj.plot(ref_x, ref_y, color="blue", lw=0.6, alpha=0.3, label="Robot1 (ref)")
-    ax_traj.plot(r1_x, r1_y, color="red", lw=0.6, alpha=0.3, label="Robot1 (attack)")
+    # Static trajectories (faint)
+    ax_traj.plot(ref_x, ref_y, color="blue", lw=0.6, alpha=0.3,
+                 label="Robot1 ref (no attack)")
+    ax_traj.plot(r1_x, r1_y, color="red", lw=0.6, alpha=0.3,
+                 label="Robot1 (meaconed GNSS)")
     if has_r2:
-        ax_traj.plot(r2_x, r2_y, color="green", lw=0.6, alpha=0.3, label="Robot2")
+        ax_traj.plot(r2_x, r2_y, color="green", lw=0.6, alpha=0.3,
+                     label="Robot2 (clean GNSS)")
 
-    # Waypoint marker
-    way_x, way_y = 5.0, 0.0   # from params.yaml
-    ax_traj.scatter(way_x, way_y, marker="*", s=120, c="gold", edgecolors="black",
-                    linewidths=0.8, zorder=10, label=f"Waypoint ({way_x},{way_y})")
+    # Route waypoints: robot1 (red stars), robot2 (green stars)
+    for i, (wx, wy) in enumerate(WP_R1):
+        ax_traj.scatter(wx, wy, marker="*", s=140, c="orangered",
+                        edgecolors="black", linewidths=0.8, zorder=10)
+        ax_traj.annotate(f"R1-WP{i+1}", (wx + 0.15, wy + 0.15),
+                         fontsize=7, fontweight="bold", color="darkred")
+    for i, (wx, wy) in enumerate(WP_R2):
+        ax_traj.scatter(wx, wy, marker="*", s=140, c="limegreen",
+                        edgecolors="black", linewidths=0.8, zorder=10)
+        ax_traj.annotate(f"R2-WP{i+1}", (wx + 0.15, wy + 0.15),
+                         fontsize=7, fontweight="bold", color="darkgreen")
+
+    # Connection lines for both routes
+    for route, color in [(WP_R1, "red"), (WP_R2, "green")]:
+        for i in range(len(route)):
+            w1 = route[i]
+            w2 = route[(i + 1) % len(route)]
+            ax_traj.plot([w1[0], w2[0]], [w1[1], w2[1]],
+                         "--", lw=0.6, alpha=0.25, color=color)
 
     # Animated dots
     dot_r1_ref, = ax_traj.plot([], [], "o", color="blue", ms=8, zorder=5)
@@ -371,7 +389,10 @@ def main():
         drift_line.set_data(t_video[mask], drift[mask])
         drift_cursor.set_xdata([t_now, t_now])
         d_now = drift[i]
-        drift_val_text.set_text(f"drift = {d_now:.3f} m")
+        info_lines = [f"drift = {d_now:.3f} m"]
+        if ttd is not None:
+            info_lines.append(f"TTD = {ttd:.2f} s")
+        drift_val_text.set_text("\n".join(info_lines))
 
         # ---- Trajectory panel ----
         if not np.isnan(r1_x[i]):
@@ -396,7 +417,7 @@ def main():
 
     ani = animation.FuncAnimation(
         fig, animate, frames=n_frames,
-        interval=1000 / args.fps,  # ms per frame (cosmetic for the writer)
+        interval=1000 / args.fps,
         blit=True,
     )
 

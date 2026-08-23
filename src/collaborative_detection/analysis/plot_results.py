@@ -9,9 +9,9 @@ Run it with the jazzy Python, which has rosbag2_py + matplotlib:
         src/collaborative_detection/analysis/plot_results.py
 
 What it does:
-  1. Auto-discovers every experiment in ~/tfm_meaconing_ws/results/ (E* or e*)
+  1. Auto-discovers every experiment in ~/tfm_meaconing_ws/results/
   2. Loads each rosbag (MCAP) and extracts time series
-  3. Prints a diagnostics + TTD / false-alarm table to the terminal
+  3. Prints diagnostics + TTD / false-alarm table
   4. Saves PNG plots to ~/tfm_meaconing_ws/results/plots/
   5. For E5: compares attack trajectory vs reference, plots physical drift
 """
@@ -23,7 +23,7 @@ from collections import defaultdict
 import numpy as np
 import matplotlib
 
-matplotlib.use("Agg")  # headless backend — write PNGs instead of opening a window
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
@@ -32,7 +32,15 @@ from rosidl_runtime_py.utilities import get_message
 
 RESULTS_DIR = Path.home() / "tfm_meaconing_ws" / "results"
 PLOTS_DIR = RESULTS_DIR / "plots"
-TAU = 3.0  # CUSUM detection threshold (must match params.yaml)
+TAU = 3.0
+
+# Offset routes — must match params.yaml
+E5_WP_R1 = [(5.0, 0.0), (5.0, 5.0), (0.0, 5.0)]
+E5_WP_R2 = [(5.0, 2.0), (5.0, 7.0), (0.0, 7.0)]
+
+# Spawn offsets (odom→world conversion), must match params.yaml
+R1_SPAWN = (0.0, 0.0)
+R2_SPAWN = (0.0, 2.0)
 
 
 def load_rosbag(bag_path: str) -> dict:
@@ -42,34 +50,26 @@ def load_rosbag(bag_path: str) -> dict:
         input_serialization_format="cdr",
         output_serialization_format="cdr",
     )
-
     reader = SequentialReader()
     reader.open(storage_options, converter_options)
-
     type_map = {t.name: t.type for t in reader.get_all_topics_and_types()}
 
     data = defaultdict(lambda: {"time": [], "value": []})
     t0 = None
-
     while reader.has_next():
         topic, msg_bytes, timestamp_ns = reader.read_next()
         ts = timestamp_ns / 1e9
         if t0 is None:
             t0 = ts
-
         if topic not in type_map:
             continue
-
         msg = deserialize_message(msg_bytes, get_message(type_map[topic]))
         data[topic]["time"].append(ts - t0)
-
         if hasattr(msg, "data"):
-            # std_msgs/Float64, std_msgs/Bool
             val = msg.data
             val = 1.0 if isinstance(val, bool) and val else float(val)
             data[topic]["value"].append(float(val))
         elif hasattr(msg, "pose"):
-            # PoseStamped -> msg.pose.position ; Odometry -> msg.pose.pose.position
             pos = getattr(msg.pose, "position", None) or msg.pose.pose.position
             data[topic]["value"].append(pos.x)
         else:
@@ -85,19 +85,19 @@ def load_rosbag(bag_path: str) -> dict:
     return result
 
 
-def load_odom_trajectory(bag_path: str, topic: str = "/robot1/odom") -> dict:
+def load_odom_trajectory(bag_path: str, topic: str,
+                         spawn_x: float = 0.0, spawn_y: float = 0.0) -> dict:
     """
-    Load odometry positions (x, y) from a rosbag.
+    Load odometry positions (x, y) from a rosbag, adding spawn offset
+    to convert from odom frame to world frame.
 
-    Returns {'time': np.array, 'x': np.array, 'y': np.array}, or None on failure.
-    Odometry uses msg.pose.pose.position, so we extract x and y separately.
+    Returns {'time': np.array, 'x': np.array, 'y': np.array}, or None.
     """
     storage_options = StorageOptions(uri=str(bag_path), storage_id="mcap")
     converter_options = ConverterOptions(
         input_serialization_format="cdr",
         output_serialization_format="cdr",
     )
-
     reader = SequentialReader()
     reader.open(storage_options, converter_options)
 
@@ -106,33 +106,24 @@ def load_odom_trajectory(bag_path: str, topic: str = "/robot1/odom") -> dict:
         print(f"  [odom] Topic {topic} not found in bag — skipping trajectory")
         return None
 
-    times = []
-    xs = []
-    ys = []
+    times, xs, ys = [], [], []
     t0 = None
-
     while reader.has_next():
-        t, msg_bytes, timestamp_ns = reader.read_next()
+        t, msg_bytes, ts_ns = reader.read_next()
         if t != topic:
             continue
-        ts = timestamp_ns / 1e9
+        ts = ts_ns / 1e9
         if t0 is None:
             t0 = ts
-
         msg = deserialize_message(msg_bytes, get_message(type_map[topic]))
         pos = msg.pose.pose.position
         times.append(ts - t0)
-        xs.append(pos.x)
-        ys.append(pos.y)
+        xs.append(pos.x + spawn_x)
+        ys.append(pos.y + spawn_y)
 
-    if len(times) == 0:
+    if not times:
         return None
-
-    return {
-        "time": np.array(times),
-        "x": np.array(xs),
-        "y": np.array(ys),
-    }
+    return {"time": np.array(times), "x": np.array(xs), "y": np.array(ys)}
 
 
 def attack_start_time(data: dict):
@@ -145,10 +136,7 @@ def attack_start_time(data: dict):
 
 
 def alert_time(data: dict):
-    """
-    Return the time (s) when /system/meaconing_alert first became True (confirmed),
-    or None if no alert was ever active.
-    """
+    """Return first confirmed alert time, or None."""
     alert = data.get("/system/meaconing_alert")
     if alert is None or len(alert["time"]) == 0:
         return None
@@ -174,17 +162,17 @@ def main():
         experiments[d.name] = load_rosbag(d)
 
     # ------------------------------------------------------------------ #
-    # 1. Diagnostics: which topics have data                              #
+    # 1. Diagnostics                                                     #
     # ------------------------------------------------------------------ #
     print("\n" + "=" * 60)
     print("DIAGNOSTICS — topics with data")
     print("=" * 60)
     for name, data in experiments.items():
-        with_data = [t for t, d in data.items() if len(d["time"]) > 0]
+        with_data = [t for t in data if len(data[t]["time"]) > 0]
         print(f"  {name}: {with_data}")
 
     # ------------------------------------------------------------------ #
-    # 2. S_k evolution (one subplot per experiment)                       #
+    # 2. S_k evolution                                                   #
     # ------------------------------------------------------------------ #
     n = len(experiments)
     fig, axes = plt.subplots(n, 1, figsize=(14, 3 * n), sharex=True, squeeze=False)
@@ -206,7 +194,6 @@ def main():
             if np.any(m):
                 ax.fill_between(alert["time"], 0, TAU * 1.5, where=m,
                                 alpha=0.2, color="red", label="Alarm active")
-
         ax.axhline(TAU, color="red", ls="--", lw=1.5, label=f"tau = {TAU}")
         if t_attack is not None:
             ax.axvline(t_attack, color="purple", ls=":", lw=1.5, label="Attack")
@@ -225,7 +212,7 @@ def main():
     print(f"\nSaved: {out}")
 
     # ------------------------------------------------------------------ #
-    # 3. UWB distance per experiment                                      #
+    # 3. UWB distance per experiment                                     #
     # ------------------------------------------------------------------ #
     for name, data in experiments.items():
         uwb = data.get("/robots/uwb_distance")
@@ -249,7 +236,7 @@ def main():
         print(f"Saved: {out}")
 
     # ------------------------------------------------------------------ #
-    # 4. Fixed threshold vs CUSUM (delta + S_k)                           #
+    # 4. Fixed threshold vs CUSUM                                        #
     # ------------------------------------------------------------------ #
     for name, data in experiments.items():
         cusum = data.get("/system/cusum_value")
@@ -265,7 +252,6 @@ def main():
         t_attack = attack_start_time(data)
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 7), sharex=True)
-
         ax1.plot(t, d, lw=0.5, color="steelblue", alpha=0.7, label="delta(t)")
         ax1.axhline(2.0, color="orange", ls="--", lw=1.5, label="Fixed thr = 2.0 m")
         ax1.set_ylabel("delta(t) (m)")
@@ -283,11 +269,9 @@ def main():
         ax2.set_title(f"{name} — CUSUM detector")
         ax2.legend(loc="upper left")
         ax2.grid(True, alpha=0.3)
-
         if t_attack is not None:
             for ax in (ax1, ax2):
                 ax.axvline(t_attack, color="purple", ls=":", lw=1.5)
-
         out = PLOTS_DIR / f"threshold_vs_cusum_{name}.png"
         fig.tight_layout()
         fig.savefig(out, bbox_inches="tight", dpi=150)
@@ -295,46 +279,40 @@ def main():
         print(f"Saved: {out}")
 
     # ------------------------------------------------------------------ #
-    # 5. TTD + false-alarm table                                          #
+    # 5. TTD + false-alarm table                                         #
     # ------------------------------------------------------------------ #
     print("\n" + "=" * 60)
     print("DETECTION METRICS")
     print("=" * 60)
     print(f"{'Experiment':<22} {'Attack t':>9}  {'TTD (s)':>9}  {'False alarms':>13}")
     print("-" * 60)
-
     for name, data in experiments.items():
         cusum = data.get("/system/cusum_value")
         alert = data.get("/system/meaconing_alert")
         t_attack = attack_start_time(data)
-
         if not (cusum and len(cusum["time"]) > 0):
             print(f"{name:<22} {'—':>9}  {'NO DATA':>9}  {'—':>13}")
             continue
-
-        # TTD: time of the first *confirmed* alarm relative to the attack.
         ttd = None
         if alert and len(alert["time"]) > 0 and np.any(alert["value"] > 0.5):
             first = float(alert["time"][np.where(alert["value"] > 0.5)[0][0]])
             if t_attack is not None:
                 ttd = first - t_attack
-
-        # False alarms: confirmed alerts before the attack (or all if no attack)
         n_false = 0
         if alert and len(alert["time"]) > 0:
             if t_attack is not None:
                 n_false = int(np.sum(alert["value"][alert["time"] < t_attack] > 0.5))
             else:
                 n_false = int(np.sum(alert["value"] > 0.5))
-
         t_attack_str = f"{t_attack:.1f}s" if t_attack is not None else "never"
         ttd_str = f"{ttd:.2f}s" if ttd is not None else "N/A"
         print(f"{name:<22} {t_attack_str:>9}  {ttd_str:>9}  {n_false:>13}")
 
-    # ------------------------------------------------------------------ #
-    # 6. E5: Physical drift (attack trajectory vs reference trajectory)   #
-    # ------------------------------------------------------------------ #
-    e5_attack_dirs = [d for d in exp_dirs if d.name.startswith("e5_") and "ref" not in d.name]
+    # ================================================================== #
+    # 6. E5: Physical drift + trajectory analysis                        #
+    # ================================================================== #
+    e5_attack_dirs = [d for d in exp_dirs
+                      if d.name.startswith("e5_") and "ref" not in d.name]
     e5_ref_dir = None
     for d in exp_dirs:
         if "e5_ref" in d.name or "reference" in d.name:
@@ -346,47 +324,53 @@ def main():
         print("E5 — PHYSICAL DRIFT ANALYSIS")
         print("=" * 60)
 
-        ref_traj = load_odom_trajectory(e5_ref_dir, "/robot1/odom")
-        if ref_traj is None:
-            print("  Could not load reference trajectory from e5_ref — skipping E5 drift plot")
+        # Load trajectories WITH spawn offsets
+        ref_r1 = load_odom_trajectory(e5_ref_dir, "/robot1/odom",
+                                      R1_SPAWN[0], R1_SPAWN[1])
+        if ref_r1 is None:
+            print("  Could not load reference R1 trajectory — skipping E5")
         else:
             for e5d in e5_attack_dirs:
-                atk_traj = load_odom_trajectory(e5d, "/robot1/odom")
+                atk_r1 = load_odom_trajectory(e5d, "/robot1/odom",
+                                              R1_SPAWN[0], R1_SPAWN[1])
+                atk_r2 = load_odom_trajectory(e5d, "/robot2/odom",
+                                              R2_SPAWN[0], R2_SPAWN[1])
                 atk_data = experiments.get(e5d.name, {})
-                if atk_traj is None:
-                    print(f"  Could not load attack odom from {e5d.name} — skipping")
+
+                if atk_r1 is None:
+                    print(f"  Could not load attack R1 odom from {e5d.name}")
                     continue
 
                 t_attack = attack_start_time(atk_data)
                 t_alert = alert_time(atk_data)
 
-                # Match by relative timestamp: interpolate ref onto attack time grid
-                # Both start at t≈0 but may have different lengths / sampling rates
-                common_len = min(len(ref_traj["time"]), len(atk_traj["time"]))
-                t_common = atk_traj["time"][:common_len]
+                # ---- Match ref → attack time grid ------------------------ #
+                common_len = min(len(ref_r1["time"]), len(atk_r1["time"]))
+                t_common = atk_r1["time"][:common_len]
 
-                # Interpolate reference onto attack time grid
-                ref_x = np.interp(t_common, ref_traj["time"], ref_traj["x"])
-                ref_y = np.interp(t_common, ref_traj["time"], ref_traj["y"])
-
-                atk_x = atk_traj["x"][:common_len]
-                atk_y = atk_traj["y"][:common_len]
+                ref_x = np.interp(t_common, ref_r1["time"], ref_r1["x"])
+                ref_y = np.interp(t_common, ref_r1["time"], ref_r1["y"])
+                atk_x = atk_r1["x"][:common_len]
+                atk_y = atk_r1["y"][:common_len]
 
                 drift = np.sqrt((atk_x - ref_x) ** 2 + (atk_y - ref_y) ** 2)
 
-                # --- Plot: drift vs time ---
+                # ---- Robot2 trajectory (world frame, with spawn offset) -- #
+                has_r2 = atk_r2 is not None
+                r2_x = r2_y = None
+                if has_r2:
+                    r2_x = atk_r2["x"]
+                    r2_y = atk_r2["y"]
+
+                # ---- Drift plot ----------------------------------------- #
                 fig, ax = plt.subplots(figsize=(14, 5))
                 ax.plot(t_common, drift, "b-", lw=1.2, label="Physical drift (m)")
-
                 if t_attack is not None:
                     ax.axvline(t_attack, color="purple", ls=":", lw=2.0,
                                label="Attack activated")
                 if t_alert is not None:
                     ax.axvline(t_alert, color="red", ls="--", lw=2.0,
                                label="CUSUM alert")
-
-                # Annotate the drift value at detection time
-                if t_alert is not None:
                     idx_alert = np.searchsorted(t_common, t_alert)
                     if idx_alert < len(drift):
                         drift_at_alert = drift[idx_alert]
@@ -396,75 +380,130 @@ def main():
                             xy=(t_alert, drift_at_alert),
                             xytext=(t_alert + 2, drift_at_alert + 0.1),
                             arrowprops=dict(arrowstyle="->", color="red"),
-                            fontsize=10,
-                            color="red",
+                            fontsize=10, color="red",
                         )
-
+                # TTD badge
+                if t_attack is not None and t_alert is not None:
+                    ttd = t_alert - t_attack
+                    ax.annotate(
+                        f"TTD = {ttd:.2f} s",
+                        xy=(0.5, 0.08), xycoords="axes fraction",
+                        fontsize=12, fontweight="bold", color="darkred", ha="center",
+                        bbox=dict(boxstyle="round", facecolor="lightyellow",
+                                  edgecolor="darkred", alpha=0.9),
+                    )
                 ax.set_xlabel("Time (s)")
                 ax.set_ylabel("Physical drift (m)")
                 ax.set_title(
-                    f"{e5d.name} — Physical deviation from reference trajectory\n"
-                    f"(Waypoint follower under meaconing attack)"
+                    f"{e5d.name} — Physical deviation from reference\n"
+                    f"R1: meaconed GNSS (drifts) | R2: clean GNSS (unaffected)"
                 )
                 ax.legend(loc="upper left")
                 ax.grid(True, alpha=0.3)
-
                 out = PLOTS_DIR / f"e5_physical_drift_{e5d.name}.png"
                 fig.tight_layout()
                 fig.savefig(out, bbox_inches="tight", dpi=150)
                 plt.close(fig)
                 print(f"Saved: {out}")
 
-                # --- Also plot the trajectories side by side (top-down view) ---
-                fig, ax = plt.subplots(figsize=(10, 8))
-                ax.plot(ref_x, ref_y, "b-", lw=1.0, alpha=0.7, label="Reference (no attack)")
-                ax.plot(atk_x, atk_y, "r-", lw=1.0, alpha=0.7, label="Attack (spoofed GNSS)")
+                # ---- Trajectory plot (top-down) ------------------------- #
+                fig, ax = plt.subplots(figsize=(11, 9))
 
-                # Mark start points
-                ax.scatter(ref_x[0], ref_y[0], c="blue", marker="o", s=60, zorder=5,
-                           label="Start (ref)")
-                ax.scatter(atk_x[0], atk_y[0], c="red", marker="o", s=60, zorder=5,
-                           label="Start (attack)")
+                # Reference R1
+                ax.plot(ref_x, ref_y, "b-", lw=1.0, alpha=0.7,
+                        label="R1 ref (clean GNSS, no attack)")
+                # Attack R1
+                ax.plot(atk_x, atk_y, "r-", lw=1.0, alpha=0.7,
+                        label="R1 (meaconed GNSS → drifts)")
+                # Robot2
+                if has_r2:
+                    ax.plot(r2_x, r2_y, "green", lw=1.0, alpha=0.7,
+                            label="R2 (clean GNSS)")
 
-                # Mark positions at attack time and alert time
+                # ---- Waypoints + routes for both robots ----------------- #
+                for i, (wx, wy) in enumerate(E5_WP_R1):
+                    ax.scatter(wx, wy, marker="*", s=200, c="orangered",
+                               edgecolors="black", linewidths=0.8, zorder=10)
+                    ax.annotate(f"R1-WP{i+1}", (wx + 0.2, wy + 0.2),
+                                fontsize=8, fontweight="bold", color="darkred")
+                for i, (wx, wy) in enumerate(E5_WP_R2):
+                    ax.scatter(wx, wy, marker="*", s=200, c="limegreen",
+                               edgecolors="black", linewidths=0.8, zorder=10)
+                    ax.annotate(f"R2-WP{i+1}", (wx + 0.2, wy + 0.2),
+                                fontsize=8, fontweight="bold", color="darkgreen")
+
+                for route, color in [(E5_WP_R1, "red"), (E5_WP_R2, "green")]:
+                    for i in range(len(route)):
+                        w1 = route[i]
+                        w2 = route[(i + 1) % len(route)]
+                        ax.plot([w1[0], w2[0]], [w1[1], w2[1]],
+                                "--", lw=0.8, alpha=0.3, color=color)
+
+                # ---- Start markers ------------------------------------- #
+                ax.scatter(ref_x[0], ref_y[0], c="blue", marker="o", s=80, zorder=5,
+                           label=f"R1 ref start ({ref_x[0]:.1f},{ref_y[0]:.1f})")
+                ax.scatter(atk_x[0], atk_y[0], c="red", marker="o", s=80, zorder=5,
+                           label=f"R1 atk start ({atk_x[0]:.1f},{atk_y[0]:.1f})")
+                if has_r2:
+                    ax.scatter(r2_x[0], r2_y[0], c="green", marker="s", s=70, zorder=5,
+                               label=f"R2 start ({r2_x[0]:.1f},{r2_y[0]:.1f})")
+
+                # ---- Attack / alert markers on trajectory -------------- #
                 if t_attack is not None:
                     ia = np.searchsorted(t_common, t_attack)
                     if ia < common_len:
-                        ax.scatter(atk_x[ia], atk_y[ia], c="purple", marker="X", s=100,
-                                   zorder=6, label="Attack activated")
+                        ax.scatter(atk_x[ia], atk_y[ia], c="purple", marker="X",
+                                   s=120, zorder=6, label="Attack activated")
                 if t_alert is not None:
                     ib = np.searchsorted(t_common, t_alert)
                     if ib < common_len:
-                        ax.scatter(atk_x[ib], atk_y[ib], c="darkred", marker="D", s=100,
-                                   zorder=6, label="CUSUM alert")
+                        ax.scatter(atk_x[ib], atk_y[ib], c="darkred", marker="D",
+                                   s=120, zorder=6, label="CUSUM alert")
+                        if t_attack is not None:
+                            ia2 = np.searchsorted(t_common, t_attack)
+                            if ia2 < common_len:
+                                ax.annotate(
+                                    f"TTD:\n{t_alert - t_attack:.1f}s",
+                                    xy=((atk_x[ia2] + atk_x[ib]) / 2,
+                                        (atk_y[ia2] + atk_y[ib]) / 2),
+                                    fontsize=9, fontweight="bold", color="darkred",
+                                    ha="center", va="center",
+                                    bbox=dict(boxstyle="round",
+                                              facecolor="lightyellow",
+                                              edgecolor="darkred", alpha=0.85),
+                                )
 
                 ax.set_xlabel("World X (m)")
                 ax.set_ylabel("World Y (m)")
-                ax.set_title(f"{e5d.name} — Robot trajectories (top-down)")
-                ax.legend(loc="best")
+                ax.set_title(
+                    f"{e5d.name} — Offset routes (ΔY={R2_SPAWN[1]}m → D_UWB≈{R2_SPAWN[1]}m)\n"
+                    f"R1(red): meaconed GNSS → drifts | R2(green): clean GNSS"
+                )
+                ax.legend(loc="best", fontsize=7.5)
                 ax.set_aspect("equal")
                 ax.grid(True, alpha=0.3)
-
                 out = PLOTS_DIR / f"e5_trajectories_{e5d.name}.png"
                 fig.tight_layout()
                 fig.savefig(out, bbox_inches="tight", dpi=150)
                 plt.close(fig)
                 print(f"Saved: {out}")
 
-                # --- Summary ---
+                # ---- Summary ------------------------------------------ #
                 drift_final = drift[-1] if len(drift) > 0 else 0.0
                 drift_max = float(np.max(drift))
                 print(f"  {e5d.name}:")
                 print(f"    Max drift:          {drift_max:.3f} m")
                 print(f"    Final drift:        {drift_final:.3f} m")
                 if t_attack is not None and t_alert is not None:
+                    ttd = t_alert - t_attack
                     ia = np.searchsorted(t_common, t_attack)
                     ib = np.searchsorted(t_common, t_alert)
+                    print(f"    TTD:                {ttd:.2f} s")
                     if ia < len(drift) and ib < len(drift):
                         print(f"    Drift at attack:    {drift[ia]:.3f} m")
                         print(f"    Drift at detection: {drift[ib]:.3f} m")
-                print(f"    Attack → alert lag: "
-                      f"{t_alert - t_attack:.2f} s" if (t_attack and t_alert) else "    Attack → alert: N/A")
+                else:
+                    print("    Attack → alert: N/A")
 
     elif e5_attack_dirs and e5_ref_dir is None:
         print("\n[E5] No reference trajectory found — run e5_ref first, then e5")

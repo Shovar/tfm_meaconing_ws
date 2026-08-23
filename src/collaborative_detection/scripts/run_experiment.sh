@@ -21,8 +21,10 @@
 #   e2  fast_drift        drift_velocity=0.5
 #   e3  hot_start         activation_delay=0      (attack from t=0)
 #   e4  wide_separation   robot2.x=5.0
-#   e5  waypoint_attack   waypoint follower + meaconing (physical drift measurement)
-#   e5_ref reference       waypoint follower WITHOUT meaconing (reference trajectory)
+#   e5  waypoint_attack   GNSS-based multi-waypoint route + single-robot meaconing
+#                          robot1 navigates via gnss_spoofed (drifts under attack)
+#                          robot2 navigates via gnss_clean (unaffected)
+#   e5_ref reference       same route, no meaconing (reference trajectory)
 # =============================================================================
 
 set -eo pipefail
@@ -40,9 +42,14 @@ GUI=false
 RECORD_TOPICS=(
     /robot1/gnss_spoofed
     /robot2/gnss_spoofed
+    /robot1/gnss_clean
+    /robot2/gnss_clean
     /robots/uwb_distance
     /system/cusum_value
+    /system/cusum_plus
+    /system/cusum_minus
     /system/delta_value
+    /system/delta_raw
     /system/meaconing_alert
     /meaconing/active
     /robot1/odom
@@ -166,17 +173,15 @@ apply_params() {
             set_param drift_velocity 0.2
             set_param robot2.x 0.0
             set_param robot2.y 2.0
-            set_param publish_robot2 False
             set_param robot2_waypoint_mode True
-            set_param startup_delay 15.0
+            set_param startup_delay 10.0
             ;;
         e5_ref)
             set_param activation_delay 9999.0
             set_param robot2.x 0.0
             set_param robot2.y 2.0
-            set_param publish_robot2 False
             set_param robot2_waypoint_mode True
-            set_param startup_delay 15.0
+            set_param startup_delay 10.0
             ;;
     esac
 }
@@ -272,15 +277,45 @@ main() {
     # --- 0b. E5 dependency: run the reference pass if it doesn't exist ---
     if [[ "${EXP}" == "e5" ]]; then
         local ref_dir="${RESULTS_DIR}/e5_ref_waypoint_reference"
-        if [[ ! -d "${ref_dir}" ]]; then
+        local ref_params="${ref_dir}/e5_ref_waypoint_reference_params.yaml"
+        local ref_stale=true
+
+        if [[ -d "${ref_dir}" && -f "${ref_params}" ]]; then
+            # Check if the reference was recorded with the current waypoint
+            # configuration (multi-waypoint: waypoints_x) or the old one
+            # (single waypoint: waypoint_x).  If the snapshot doesn't mention
+            # waypoints_x, it's stale and must be regenerated.
+            # The reference is stale if its params snapshot doesn't contain
+            # waypoints1_x (old single-waypoint code used waypoint_x instead).
+            if grep -q 'waypoints1_x' "${ref_params}" 2>/dev/null; then
+                # Also verify the spawn offset matches (catches old refs
+                # recorded with robot2.y = 0 instead of 2).
+                if grep -q "robot2.y.*2" "${ref_params}" 2>/dev/null; then
+                    ref_stale=false
+                    echo "  [e5 prereq] Reference trajectory found and appears fresh"
+                else
+                    echo "  [e5 prereq] Reference snapshot is stale (wrong robot2 Y offset)"
+                fi
+            else
+                echo "  [e5 prereq] Reference snapshot is stale (old single-waypoint code)"
+            fi
+        fi
+
+        if [[ "${ref_stale}" == "true" ]]; then
+            if [[ -d "${ref_dir}" ]]; then
+                echo "  [e5 prereq] Removing stale reference: ${ref_dir}"
+                rm -rf "${ref_dir}"
+            fi
             echo ""
-            echo "  [e5 prereq] Reference trajectory not found → running e5_ref first..."
+            echo "  [e5 prereq] Reference trajectory missing or stale → running e5_ref first..."
             echo "  [e5 prereq] (This records the ground-truth trajectory without meaconing)"
             echo ""
             # Restore params before calling ourselves (the trap hasn't fired yet)
             cp "${PARAMS_BAK}" "${PARAMS_SRC}"
-            # Run the reference pass (with the same duration)
-            "$0" e5_ref --duration "${DURATION}"
+            # Run the reference pass (with the same duration and GUI flag)
+            local gui_flag=""
+            [[ "${GUI}" == true ]] && gui_flag="--gui"
+            "$0" e5_ref --duration "${DURATION}" ${gui_flag}
             if [[ ! -d "${ref_dir}" ]]; then
                 echo "  [e5 prereq] ERROR: e5_ref did not produce results at ${ref_dir}" >&2
                 exit 1
@@ -291,8 +326,6 @@ main() {
             # Re-apply e5 params (the recursive call restored params from its own
             # trap — the build+sync below will pick them up)
             apply_params
-        else
-            echo "  [e5 prereq] Reference trajectory already exists at ${ref_dir}"
         fi
     fi
 
