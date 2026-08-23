@@ -201,7 +201,8 @@ def main():
     # --- Find global t0 for attack bag ---
     atk_topics = [
         "/system/cusum_value", "/system/delta_value", "/system/meaconing_alert",
-        "/meaconing/active", "/robot1/odom", "/robot2/odom",
+        "/meaconing/active", "/meaconing/activation_event",
+        "/robot1/odom", "/robot2/odom",
     ]
     atk_t0 = _find_global_t0(atk_dir, atk_topics)
     if atk_t0 is None:
@@ -223,6 +224,7 @@ def main():
     delta_f = _load_scalar(atk_dir, "/system/delta_value", atk_t0)
     alert = _load_scalar(atk_dir, "/system/meaconing_alert", atk_t0)
     active = _load_scalar(atk_dir, "/meaconing/active", atk_t0)
+    activation_event = _load_scalar(atk_dir, "/meaconing/activation_event", atk_t0)
     odom_r1 = _load_odom_trajectory(atk_dir, "/robot1/odom", atk_t0)
     odom_r2 = _load_odom_trajectory(atk_dir, "/robot2/odom", atk_t0)
 
@@ -318,7 +320,9 @@ def main():
 
     # Attack / alert times
     t_attack = None
-    if active is not None:
+    if activation_event is not None and len(activation_event["time"]) > 0:
+        t_attack = float(activation_event["time"][0])
+    elif active is not None:
         idx = np.where(active["value"] > 0.5)[0]
         if len(idx) > 0:
             t_attack = float(active["time"][idx[0]])

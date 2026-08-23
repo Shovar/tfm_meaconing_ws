@@ -43,6 +43,13 @@ from collections import deque
 import numpy as np
 
 
+def update_cusum(s_plus, s_minus, delta_filtered, beta):
+    """Apply one two-tailed CUSUM update and return both accumulators."""
+    next_plus = max(0.0, s_plus + delta_filtered - beta)
+    next_minus = max(0.0, s_minus - delta_filtered - beta)
+    return next_plus, next_minus
+
+
 class CUSUMDetectorNode(Node):
     """
     Two-tailed collaborative meaconing detector using CUSUM.
@@ -182,8 +189,8 @@ class CUSUMDetectorNode(Node):
         # --- Two-tailed CUSUM update ---
         # Baseline calibration removes the normal GNSS-range operating-point
         # bias; the signed branches then detect deviations in either direction.
-        self.S_plus  = max(0.0, self.S_plus  + delta_filtered - self.beta)
-        self.S_minus = max(0.0, self.S_minus - delta_filtered - self.beta)
+        self.S_plus, self.S_minus = update_cusum(
+            self.S_plus, self.S_minus, delta_filtered, self.beta)
 
         # Effective CUSUM value is the max of both branches
         S_effective = max(self.S_plus, self.S_minus)

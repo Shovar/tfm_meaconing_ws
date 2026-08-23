@@ -12,7 +12,7 @@ Activation is controlled via a ROS 2 service: /meaconing/set_active (std_srvs/Se
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, Point
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float64
 from std_srvs.srv import SetBool
 import numpy as np
 
@@ -69,6 +69,10 @@ class MeaconingInjector(Node):
         self.pub_a = self.create_publisher(PoseStamped, '/robot1/gnss_spoofed', 10)
         self.pub_b = self.create_publisher(PoseStamped, '/robot2/gnss_spoofed', 10)
         self.pub_status = self.create_publisher(Bool, '/meaconing/active', 10)
+        # One-shot event published at the exact activation callback. Analysis
+        # uses the rosbag timestamp of this message when available.
+        self.pub_activation_event = self.create_publisher(
+            Float64, '/meaconing/activation_event', 10)
 
         # --- Service ---
         self.srv = self.create_service(SetBool, '/meaconing/set_active', self._srv_callback)
@@ -104,6 +108,7 @@ class MeaconingInjector(Node):
             self.delay_timer = None
         self.active = True
         self.start_time = self.get_clock().now()
+        self._publish_activation_event()
         self.get_logger().info('🛑 MEACONING ATTACK ACTIVATED (auto-delay)')
 
     def _cb_gnss_a(self, msg: PoseStamped):
@@ -117,6 +122,7 @@ class MeaconingInjector(Node):
         self.active = request.data
         if self.active:
             self.start_time = self.get_clock().now()
+            self._publish_activation_event()
             self.get_logger().info('🛑 MEACONING ATTACK ACTIVATED (manual)')
             response.success = True
             response.message = 'Attack activated'
@@ -130,6 +136,12 @@ class MeaconingInjector(Node):
             response.success = True
             response.message = 'Attack deactivated'
         return response
+
+    def _publish_activation_event(self):
+        """Publish a timestamped activation marker for deterministic analysis."""
+        event = Float64()
+        event.data = self.start_time.nanoseconds / 1e9
+        self.pub_activation_event.publish(event)
 
     def _init_fake_origin(self):
         """Snapshot the attack start state: true positions + the common fake target.

@@ -55,6 +55,7 @@ RECORD_TOPICS=(
     /system/delta_raw
     /system/meaconing_alert
     /meaconing/active
+    /meaconing/activation_event
     /robot1/odom
     /robot2/odom
 )
@@ -97,7 +98,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${EXP}" ]]; then
-    echo "Error: specify an experiment (e0, e1, e2, e3, e4, e5, e5_ref)" >&2
+    echo "Error: specify an experiment (e0, e1, e2, e3, e4, e5, e5_ref, e6)" >&2
     usage
 fi
 
@@ -389,7 +390,18 @@ main() {
     fi
     echo "  [verify] params.yaml synced to install"
 
-    # --- 4. Launch (headless by default) ---
+    # --- 4. Start rosbag before the launch (pre-roll) -------------------
+    # Recording first preserves the complete startup and hot-start timeline.
+    # The activation_event topic is discovered when the injector starts.
+    rm -rf "${RESULTS_DIR}/${RUN_ID}"
+    echo "  [record] rosbag pre-roll → ${RESULTS_DIR}/${RUN_ID}"
+    ros2 bag record -o "${RESULTS_DIR}/${RUN_ID}" \
+        "${RECORD_TOPICS[@]}" \
+        > "/tmp/bag_${RUN_ID}.log" 2>&1 &
+    RECORD_PID=$!
+    sleep 2
+
+    # --- 5. Launch (headless by default) ---
     local gui_arg="gui:=false"
     [[ "${GUI}" == true ]] && gui_arg="gui:=true"
     echo "  [launch] Starting experiment (${gui_arg})..."
@@ -398,28 +410,20 @@ main() {
     LAUNCH_PID=$!
     echo "  [launch] PID=${LAUNCH_PID}"
 
-    # --- 5. Wait for Gazebo + robots to start ---
+    # --- 6. Wait for Gazebo + robots to start ---
     echo "  [wait] Waiting 15s for Gazebo startup..."
     sleep 15
 
-    # --- 5b. Confirm the nodes read the params we set (not stale defaults) ---
+    # --- 6b. Confirm the nodes read the params we set (not stale defaults) ---
     echo "  [verify] Effective params reported by the nodes:"
     grep -m1 'Attack will auto-activate' "/tmp/exp_${RUN_ID}.log" 2>/dev/null \
         || echo "  [verify]   (activation message not found yet)"
     grep -m1 'Meaconing Injector started' "/tmp/exp_${RUN_ID}.log" 2>/dev/null \
         || echo "  [verify]   (injector start line not found yet)"
 
-    # --- 6. Record rosbag ---
-    rm -rf "${RESULTS_DIR}/${RUN_ID}"
-    echo "  [record] rosbag → ${RESULTS_DIR}/${RUN_ID}"
-    ros2 bag record -o "${RESULTS_DIR}/${RUN_ID}" \
-        "${RECORD_TOPICS[@]}" \
-        > "/tmp/bag_${RUN_ID}.log" 2>&1 &
-    RECORD_PID=$!
-
     # --- 7. Run for the remaining time ---
-    local remaining=$((DURATION - 15))
-    echo "  [run] Recording for ${remaining}s (Ctrl+C to stop early)..."
+    local remaining=$((DURATION - 15 - 2))
+    echo "  [run] Recording for ${remaining}s after startup (2s pre-roll included)..."
     sleep "${remaining}" || true
 
     # --- 8. Tear down ---

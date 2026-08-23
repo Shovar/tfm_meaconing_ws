@@ -127,7 +127,11 @@ def load_odom_trajectory(bag_path: str, topic: str,
 
 
 def attack_start_time(data: dict):
-    """Return the time (s) when /meaconing/active first became True, or None."""
+    """Return the bag time of the activation event, with legacy fallback."""
+    event = data.get("/meaconing/activation_event")
+    if event is not None and len(event["time"]) > 0:
+        return float(event["time"][0])
+
     active = data.get("/meaconing/active")
     if active is None or len(active["time"]) == 0:
         return None
