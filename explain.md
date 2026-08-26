@@ -520,10 +520,10 @@ Sirve como control positivo fuerte. Se espera una subida más rápida que en E1,
 
 ### E3: hot start
 
-**Configuración:** activación prácticamente inmediata (`activation_delay = 2 s` en el snapshot; el comentario lo denomina hot start), `startup_delay = 3 s`.  
-**Pregunta:** ¿Qué ocurre si el sistema comienza ya bajo ataque?
+**Configuración:** activación temprana (`activation_delay = 2 s` en el snapshot), `startup_delay = 3 s`.
+**Pregunta:** ¿Qué ocurre si el sistema comienza prácticamente bajo ataque?
 
-Este caso examina el arranque adversarial. Es útil conceptualmente, pero la captura disponible comienza después de parte del arranque porque el runner espera antes de grabar. Por esa razón el primer `true` del topic de ataque y la primera alerta aparecen casi al principio del bag, y el TTD de `0.024 s` no debe utilizarse como métrica física final.
+Este caso examina el arranque adversarial. La versión actual del runner inicia rosbag2 antes del launch y registra `/meaconing/activation_event`, por lo que la última campaña permite medir el TTD de forma explícita. El escenario sigue siendo exigente porque la activación ocurre antes de que finalice la fase de calentamiento nominal.
 
 ### E4: separación amplia
 

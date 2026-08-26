@@ -77,7 +77,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │   │
 │   ├── analysis/
 │   │   ├── plot_results.py              # Generate detection metrics and plots from rosbags
-│   │   └── make_video.py                # Generate E5 experiment video (3-panel animation)
+│   │   └── make_video.py                # Generate experiment video (3-panel animation)
 │   │
 │   └── collaborative_detection/          # Python package
 │       ├── __init__.py
@@ -87,7 +87,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 │           ├── meaconing_injector.py      # Attack injector (meacons GNSS positions (signal retard + rebroadcast))
 │           ├── cusum_detector_node.py     # CUSUM sequential detector
 │           ├── robot_mover_node.py        # Autonomous circular motion controller
-│           ├── waypoint_follower_node.py  # E5: GNSS-meaconed waypoint navigation
+│           ├── waypoint_follower_node.py  # GNSS-meaconed waypoint navigation
 │           └── gnss_viz_node.py           # RViz2 Marker visualizer
 │
 ├── build/                                # Colcon build artifacts (auto-generated)
@@ -145,7 +145,7 @@ tfm_meaconing_ws/                         # ROS 2 workspace root
 
 ### Data Flow
 
-1. **Gazebo Sim** runs two TurtleBot3 Waffle robots moving in autonomous circles.
+1. **Gazebo Sim** runs two TurtleBot3 Waffle robots moving in autonomous circles(E0-E4) or following GNSS positions (E5-E6).
 2. **GNSS Sim Node** reads odometry from both robots, converts from local `odom` frame to global `world` frame using spawn offsets, adds Gaussian noise, and publishes `gnss_clean` at 30 Hz.
 3. **UWB Sim Node** reads odometry from both robots, converts to world frame, computes the Euclidean distance, adds Gaussian noise (σ = 0.24 m), and publishes `uwb_distance` at 30 Hz.
 4. **Meaconing Injector** subscribes to `gnss_clean` and, when inactive, passes it through as `gnss_spoofed`. When the attack activates (auto-delay or manual service call), both robots' GNSS outputs are **gradually dragged toward a common fake target at `drift_velocity`** plus independent noise — a single-antenna 'drag-off' meaconing attack. Slower drift collapses `D_GNSS` more slowly, so the CUSUM rises at a rate proportional to `drift_velocity`.
@@ -292,12 +292,11 @@ This starts **everything** in sequence:
 | t (s) | Event |
 |---|---|
 | 0 | Gazebo Sim server + GUI |
-| 2–3 | Two TurtleBot3 robots spawn at (0,0) and (3,0) |
+| 2–3 | Two TurtleBot3 robots spawn |
 | 5 | GNSS + UWB simulators start publishing |
 | 5.5 | Meaconing injector starts (passthrough mode) |
 | 6 | CUSUM detector starts (10 s warmup from first data sample) |
-| 7 | Robots begin autonomous circular motion |
-| 7.5 | GNSS visualization node starts (markers viewable in RViz2) |
+| 7 | Robots begin motion |
 | **30** | 🛑 Attack auto-activates (configurable) |
 
 ### 4. Verify the pipeline
@@ -403,53 +402,15 @@ All parameters live in `config/params.yaml` under the `/**` wildcard node.
 | `robot2_waypoint_mode` | `false` | E5: if `true`, robot2 follows waypoint via odometry (ground truth) |
 
 ---
+## Offline Analysis
 
-## CUSUM Detector Calibration
-
-The CUSUM detector uses a **two-tailed** approach with a baseline-corrected signed innovation. During the attack-free `startup_delay`, it estimates the median operating-point value $\delta_0$ and then uses $\delta = (D_{UWB} - D_{GNSS}) - \delta_0$, maintaining two independent accumulators:
-
-- **$S^+_k$** monitors $\delta > 0$ (D_GNSS collapses — single-antenna meaconing)
-- **$S^-_k$** monitors $\delta < 0$ (D_GNSS inflates — pattern-based attack)
-
-Alarm fires if **either** accumulator exceeds $\tau = 3.0$ for the confirmation window (2.0 s).
-
-### Why two-tailed instead of absolute value
-
-- The GNSS range is a Euclidean norm, so zero-mean position noise creates a non-zero range bias. Estimating $\delta_0$ during startup removes that normal operating-point bias before accumulation.
-- With corrected signed $\delta$: $\mathbb{E}[\delta] \approx 0$ under H₀. $\beta = 0.5$ then gives negative drift, so $S^+_k$ and $S^-_k$ stay at zero during normal operation.
-- With $|\delta|$: $\mathbb{E}[|\delta|] \approx 1.14$ m under H₀ (folded normal) → a bias that the CUSUM would accumulate. To compensate, $\beta$ would need to be > 1.14, wasting sensitivity.
-- Two-tailed is the standard approach in statistical process control for detecting deviations in either direction without a noise-floor penalty.
-
-### Parameters
-
-- **$\beta = 0.5$**: Under H₀, $\mathbb{E}[\delta - \beta] = -0.5$ → negative drift keeps both accumulators at zero.
-- **$\tau = 3.0$**: Three consecutive positive contributions of ~1.5 m are needed to cross the threshold.
-- **Confirmation window (2.0 s)**: rejects transient noise spikes.
-
-Under H₁ (meaconing): $D_{GNSS} \approx 0$, $D_{UWB} \approx 2$ m → $\delta \approx 2$ m → $S^+_k$ grows ~1.5 m/step → crosses $\tau$ in ~2 steps (~67 ms).
-
-**The latest E0 and E5 reference executions produced zero confirmed false alarms.** The raw innovation remains available on `/system/delta_raw`; `/system/delta_value` is the baseline-corrected, filtered innovation used by the CUSUM. A single campaign is evidence of correct behavior for the tested runs, not a complete statistical estimate of FAR.
-
----
-
-### Gazebo
-
-During the attack, Gazebo shows the robots continuing their normal circular motion. The meaconing is **invisible in the physical simulation** because it only affects sensor readings — exactly as in a real attack. The discrepancy only becomes apparent when comparing GNSS-derived distance against UWB-measured distance.
-
----
-
-## Analysis
-
-After running experiments, generate the plots and metrics with `plot_results.py`
-(headless — no Jupyter needed):
+After recording experiments, generate the metrics and plots with the ROS 2 Jazzy environment active:
 
 ```bash
-# From the ROS 2 Jazzy environment
-cd ~/tfm_meaconing_ws
-source install/setup.bash
 python3 src/collaborative_detection/analysis/plot_results.py
 ```
 
+Results are written to `results/plots/`. The analysis uses `rosbag2_py` and reports attack time, time-to-detection (TTD), false alarms, CUSUM evolution, UWB distance, and waypoint physical drift.
 The script automatically:
 
 1. Discovers all experiment rosbags in `results/`
@@ -465,66 +426,12 @@ The script automatically:
 
 > **Requires** the ROS 2 Jazzy environment (`pixi run -e jazzy`) for `rosbag2_py` and `rclpy`.
 
----
+The optional synchronized experiment video can be generated with:
 
-## Latest Results
-
-The following results come from the latest complete campaign after rerunning E0-E6 with the current detector and recording pipeline. The two no-attack scenarios produced no false alarms, while every attack scenario produced a confirmed detection.
-
-| Experiment | Attack time | TTD | False alarms | Interpretation |
-|---|---:|---:|---:|---|
-| E0 baseline | never | N/A | 0 | Normal circular motion; no alarm. |
-| E1 slow drift | 32.0 s | 2.71 s | 0 | Slow drag-off detected. |
-| E2 fast drift | 32.5 s | 3.93 s | 0 | Fast drag-off detected. |
-| E3 hot start | 4.6 s | 4.34 s | 0 | Early attack detected with the pre-roll recording. |
-| E4 wide separation | 32.5 s | 2.73 s | 0 | Detection remains effective at 5 m initial separation. |
-| E5 reference | never | N/A | 0 | Waypoint navigation without attack; no alarm. |
-| E5 waypoint attack | 32.5 s | 5.70 s | 0 | R1 is meaconed and its physical drift is detected. |
-| E6 dual meaconing | 32.4 s | 5.51 s | 0 | Both navigation loops are meaconed and the attack is detected. |
-
-The important conclusion is not a direct E5-versus-E6 TTD ranking. The detector identifies both single-robot and dual-robot attacks because the false GNSS geometry becomes inconsistent with the physical UWB relationships. An attacker would need to preserve a coherent geometric structure across all receivers and relative distances. As the fleet grows, the number of simultaneous geometric constraints grows, making a consistent multi-robot meaconing attack more difficult.
-
-### CUSUM evolution
-
-<p align="center">
-  <img src="docs/images/cusum_evolution.png" alt="Updated CUSUM statistic S_k per experiment" width="90%"/>
-</p>
-
-**Updated CUSUM statistic for all eight recorded scenarios.** E0 and E5 reference remain free of confirmed alarms. E1, E2, E3, E4, E5 and E6 produce confirmed detections with zero false alarms in this campaign. The confirmation window distinguishes persistent attack evidence from isolated transients.
-
-### UWB distance (physical inter-robot distance)
-
-| E0 | E1 | E2 | E3 | E4 |
-|:---:|:---:|:---:|:---:|:---:|
-| <img src="docs/images/uwb_distance_e0_baseline.png" width="180"/> | <img src="docs/images/uwb_distance_e1_slow_drift.png" width="180"/> | <img src="docs/images/uwb_distance_e2_fast_drift.png" width="180"/> | <img src="docs/images/uwb_distance_e3_hot_start.png" width="180"/> | <img src="docs/images/uwb_distance_e4_wide_separation.png" width="180"/> |
-
-| E5 reference | E5 attack | E6 dual attack |
-|:---:|:---:|:---:|
-| <img src="docs/images/uwb_distance_e5_ref_waypoint_reference.png" width="220"/> | <img src="docs/images/uwb_distance_e5_waypoint_attack.png" width="220"/> | <img src="docs/images/uwb_distance_e6_dual_meaconing.png" width="220"/> |
-
-The UWB series remain independent of the GNSS injection in the sensor model. In E5 and E6, the physical distance also reflects the response of the waypoint controllers, so it must be interpreted together with the trajectories.
-
-### Fixed threshold vs CUSUM
-
-| E0 | E1 | E2 | E3 | E4 |
-|:---:|:---:|:---:|:---:|:---:|
-| <img src="docs/images/threshold_vs_cusum_e0_baseline.png" width="180"/> | <img src="docs/images/threshold_vs_cusum_e1_slow_drift.png" width="180"/> | <img src="docs/images/threshold_vs_cusum_e2_fast_drift.png" width="180"/> | <img src="docs/images/threshold_vs_cusum_e3_hot_start.png" width="180"/> | <img src="docs/images/threshold_vs_cusum_e4_wide_separation.png" width="180"/> |
-
-| E5 reference | E5 attack | E6 dual attack |
-|:---:|:---:|:---:|
-| <img src="docs/images/threshold_vs_cusum_e5_ref_waypoint_reference.png" width="220"/> | <img src="docs/images/threshold_vs_cusum_e5_waypoint_attack.png" width="220"/> | <img src="docs/images/threshold_vs_cusum_e6_dual_meaconing.png" width="220"/> |
-
-The fixed-threshold plots show why a single crossing is not enough: normal waypoint navigation can produce transient excursions, while the CUSUM plus a 2 s confirmation window rejects them and confirms persistent attack evidence. The innovation shown is the baseline-corrected, filtered value used by the detector.
-
-### Physical drift and trajectories
-
-E5 shows that R1 has only `0.091 m` of drift at detection but reaches `6.603 m` by the end of the run. E6 shows `0.218 m` of R1 drift at detection and final/max drifts of `7.032 m` for R1 and `8.979 m` for R2.
-
-| E5 physical drift | E5 trajectories | E6 physical drift | E6 trajectories |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/images/e5_physical_drift_e5_waypoint_attack.png" width="220"/> | <img src="docs/images/e5_trajectories_e5_waypoint_attack.png" width="180"/> | <img src="docs/images/e6_physical_drift_e6_dual_meaconing.png" width="220"/> | <img src="docs/images/e6_trajectories_e6_dual_meaconing.png" width="180"/> |
-
-These plots connect statistical detection with physical impact. The attack is confirmed while the measured drift is still small, then the navigation error grows substantially if the attack is allowed to continue.
+```bash
+python3 src/collaborative_detection/analysis/make_video.py e5_waypoint_attack
+python3 src/collaborative_detection/analysis/make_video.py e6_dual_meaconing
+```
 
 ---
 
