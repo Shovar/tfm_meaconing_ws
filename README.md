@@ -55,7 +55,6 @@ The CUSUM is superior to a fixed threshold because it **accumulates evidence ove
 ```
 tfm_meaconing_ws/                         # ROS 2 workspace root
 ├── README.md                             # ← this file
-├── EXPERIMENTS.md                        # Detailed experiment guide
 │
 ├── src/collaborative_detection/          # Source package
 │   ├── package.xml                       # ROS 2 package manifest
