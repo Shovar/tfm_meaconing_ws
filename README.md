@@ -1,6 +1,6 @@
 # Collaborative GNSS Meaconing Detection via UWB Ranging and CUSUM
 
-**Master's Thesis (TFM)** — Security Architecture for Autonomous Robot Navigation  
+**Master's Thesis (TFM)** 
 Antonio García Alcón — Universidad Europea de Madrid, 2026
 
 ---
