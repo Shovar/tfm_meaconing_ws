@@ -3,7 +3,6 @@
 **Master's Thesis (TFM)** 
 Antonio García Alcón — Universidad Europea de Madrid, 2026
 
-
 ---
 
 ## Overview
